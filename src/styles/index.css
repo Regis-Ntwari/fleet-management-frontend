@@ -1,0 +1,197 @@
+@import '@fontsource-variable/inter';
+
+/*
+ * Colours come from the MUI theme as CSS variables (--limoz-palette-*), generated
+ * for the `.light` and `.dark` classes on <html>. This file only holds base rules
+ * that MUI's CssBaseline does not cover.
+ */
+html {
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+:focus-visible {
+  outline: 2px solid var(--limoz-palette-primary-main);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: var(--limoz-palette-soft-accent-bg);
+  color: var(--limoz-palette-soft-accent-fg);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.01em;
+}
+
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+input[type='search']::-webkit-search-cancel-button,
+input[type='search']::-webkit-search-decoration {
+  -webkit-appearance: none;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator,
+input[type='datetime-local']::-webkit-calendar-picker-indicator,
+input[type='time']::-webkit-calendar-picker-indicator {
+  opacity: 0.55;
+  cursor: pointer;
+}
+
+.dark input[type='date']::-webkit-calendar-picker-indicator,
+.dark input[type='datetime-local']::-webkit-calendar-picker-indicator,
+.dark input[type='time']::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
+code,
+kbd,
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--limoz-palette-edge-strong) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--limoz-palette-edge-strong);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Recharts chrome, kept recessive and token-driven. */
+.recharts-cartesian-grid line {
+  stroke: var(--limoz-palette-chart-grid);
+}
+.recharts-cartesian-axis-line,
+.recharts-cartesian-axis-tick-line {
+  stroke: var(--limoz-palette-chart-axis);
+}
+.recharts-cartesian-axis-tick-value,
+.recharts-legend-item-text,
+.recharts-label {
+  fill: var(--limoz-palette-chart-muted) !important;
+  font-size: 11.5px;
+}
+.recharts-tooltip-cursor {
+  stroke: var(--limoz-palette-edge-strong);
+}
+.recharts-surface:focus {
+  outline: none;
+}
+.recharts-wrapper,
+.recharts-wrapper * {
+  outline: none !important;
+}
+
+/* Report document: A4 print output. The screen preview uses the same fixed-width layout. */
+.report-document {
+  color-scheme: light;
+}
+@page {
+  size: A4 portrait;
+  margin: 12mm 12mm 14mm;
+}
+@media print {
+  html {
+    color-scheme: light !important;
+  }
+  html,
+  body,
+  #root {
+    background: #fff !important;
+    color: #0b0f0d !important;
+    min-height: 0 !important;
+  }
+  .report-print-page {
+    background: #fff !important;
+    min-height: 0 !important;
+  }
+  .report-print-toolbar {
+    display: none !important;
+  }
+  .report-print-page > div {
+    padding: 0 !important;
+    display: block !important;
+  }
+  .report-sheet {
+    width: auto !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+  .report-document,
+  .report-document * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .report-document thead {
+    display: table-header-group;
+  }
+  .report-document tfoot {
+    display: table-row-group;
+  }
+  .report-document tr,
+  .report-document .avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .report-document h2,
+  .report-document h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  .report-document .report-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+    border-top: 1px solid var(--limoz-palette-divider);
+  }
+  .report-document {
+    padding-bottom: 28px;
+  }
+}
