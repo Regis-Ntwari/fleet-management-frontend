@@ -22,7 +22,7 @@ The app talks to the Spring Boot API under `/api/v1`. Until that backend is avai
 
 ## Getting started
 
-Requirements: Node.js 20 or newer.
+Requirements: Node.js 24 (see `.nvmrc`); 22.22 or newer also works. The test runner (jsdom 30) does not start on Node 20.
 
 ```bash
 npm install
@@ -153,7 +153,7 @@ The handler files double as a readable specification of the endpoints and rules 
 
 ### Docker (nginx)
 
-The `Dockerfile` is a two-stage build: Node 20 builds the bundle, then `nginx:1.27-alpine` serves it on port 8080 with SPA fallback, gzip, immutable caching for hashed assets, security headers, a `/healthz` probe and an `/api/` reverse proxy to the backend.
+The `Dockerfile` is a two-stage build: Node 24 builds the bundle, then `nginx:1.27-alpine` serves it on port 8080 with SPA fallback, gzip, immutable caching for hashed assets, security headers, a `/healthz` probe and an `/api/` reverse proxy to the backend.
 
 ```bash
 # Demo image (in-browser mock API, no backend needed)
