@@ -27,4 +27,4 @@ dist-ssr
 .env
 
 # Test reports
-reports
+/reports/
