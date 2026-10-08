@@ -1,5 +1,5 @@
 # Rendered by the nginx image's envsubst at container start.
-# Variables: NGINX_PORT, API_UPSTREAM
+# Variables: NGINX_PORT, API_UPSTREAM, NGINX_LOCAL_RESOLVERS (set by the entrypoint)
 
 server {
   listen ${NGINX_PORT};
@@ -21,8 +21,14 @@ server {
   }
 
   # Proxy API calls to the Spring Boot backend (same-origin, no CORS needed).
+  # The upstream is held in a variable so nginx resolves it per request instead of
+  # at startup: a literal proxy_pass makes nginx refuse to start whenever the
+  # backend host is not resolvable yet (CI smoke test, demo deployments, backend
+  # restarting), taking the whole frontend down with it.
   location /api/ {
-    proxy_pass ${API_UPSTREAM};
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=30s ipv6=off;
+    set $api_upstream ${API_UPSTREAM};
+    proxy_pass $api_upstream;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;

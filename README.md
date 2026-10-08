@@ -153,7 +153,7 @@ The handler files double as a readable specification of the endpoints and rules 
 
 ### Docker (nginx)
 
-The `Dockerfile` is a two-stage build: Node 24 builds the bundle, then `nginx:1.27-alpine` serves it on port 8080 with SPA fallback, gzip, immutable caching for hashed assets, security headers, a `/healthz` probe and an `/api/` reverse proxy to the backend.
+The `Dockerfile` is a two-stage build: Node 24 builds the bundle, then `nginx:1.27-alpine` serves it on port 8080 with SPA fallback, gzip, immutable caching for hashed assets, security headers, a `/healthz` probe and an `/api/` reverse proxy to the backend. The proxy target (`API_UPSTREAM`) is resolved per request, so the container starts even when the backend host does not exist yet.
 
 ```bash
 # Demo image (in-browser mock API, no backend needed)

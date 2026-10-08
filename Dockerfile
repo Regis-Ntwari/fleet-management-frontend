@@ -28,13 +28,17 @@ FROM nginx:1.27-alpine AS runtime
 
 # Runtime-configurable upstream for /api/ (only used when the bundle was built
 # with VITE_USE_MOCK_API=false and an empty VITE_API_BASE_URL).
+# NGINX_ENTRYPOINT_LOCAL_RESOLVERS makes the image's entrypoint export the
+# container's DNS servers as NGINX_LOCAL_RESOLVERS for the config template.
 ENV API_UPSTREAM=http://backend:8080 \
-    NGINX_PORT=8080
+    NGINX_PORT=8080 \
+    NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 
 RUN rm /etc/nginx/conf.d/default.conf \
     && apk add --no-cache curl
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 COPY docker/default.conf.template /etc/nginx/templates/default.conf.template
+COPY --chmod=755 docker/16-resolver-fallback.envsh /docker-entrypoint.d/16-resolver-fallback.envsh
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 8080

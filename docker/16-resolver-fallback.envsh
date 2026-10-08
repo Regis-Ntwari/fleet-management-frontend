@@ -1,0 +1,5 @@
+#!/bin/sh
+# Sourced by the nginx image's entrypoint after 15-local-resolvers.envsh.
+# Guarantees NGINX_LOCAL_RESOLVERS is never empty, so the `resolver` directive
+# rendered into default.conf is always valid. 127.0.0.11 is Docker's embedded DNS.
+export NGINX_LOCAL_RESOLVERS="${NGINX_LOCAL_RESOLVERS:-127.0.0.11}"
