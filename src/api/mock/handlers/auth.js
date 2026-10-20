@@ -1,7 +1,7 @@
 import { get, post } from '../router'
 import { getDb, persist } from '../db'
-import { badRequest, ROLE_PERMISSIONS, unauthorized } from '../core'
-import { recordAudit, toUser } from '../mappers'
+import { badRequest, unauthorized } from '../core'
+import { departmentById, driverOfUser, permissionsOf, recordAudit, roleById, toUser } from '../mappers'
 const ACCESS_TTL_SECONDS = 30 * 60
 const REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60
 const revoked = new Set()
@@ -26,8 +26,24 @@ export function parseToken(token) {
     return null
   }
 }
+/** What the client keeps in its session: role and department are denormalised, permissions come from the role. */
 export function toAuthUser(u) {
-  return { id: u.id, name: `${u.firstName} ${u.lastName}`, email: u.email, role: u.role, permissions: ROLE_PERMISSIONS[u.role] }
+  const role = roleById(u.roleId)
+  const department = departmentById(u.departmentId)
+  const driver = driverOfUser(u)
+  return {
+    id: u.id,
+    name: `${u.firstName} ${u.lastName}`,
+    email: u.email,
+    role: role?.code ?? null,
+    roleName: role?.name ?? 'No role',
+    roleId: u.roleId,
+    department: department ? { id: department.id, name: department.name, code: department.code } : null,
+    // Driver self-service screens act for this driver profile; null for office staff.
+    driverId: driver?.id ?? null,
+    driverName: driver?.fullName ?? null,
+    permissions: permissionsOf(u),
+  }
 }
 function buildLogin(u) {
   return {

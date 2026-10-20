@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
-import Typography from '@mui/material/Typography'
 import EditIcon from '@mui/icons-material/Edit'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import StopIcon from '@mui/icons-material/Stop'
@@ -16,28 +15,26 @@ import SpeedIcon from '@mui/icons-material/Speed'
 import PeopleIcon from '@mui/icons-material/People'
 import { http } from '@/api/client'
 import { useAuth } from '@/app/AuthProvider'
-import { useApiMutation } from '@/features/common/hooks'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { DescriptionList, Timeline } from '@/components/ui/Display'
 import { StatusBadge } from '@/components/ui/Badge'
-import { Dialog } from '@/components/ui/Dialog'
-import { Field, Input, Textarea } from '@/components/ui/Field'
 import { ErrorState, LinkText, NotFoundInline, Skeleton, InlineAlert } from '@/components/ui/Feedback'
+import { TripTransitionDialog } from './TripTransitionDialog'
 import { Stat, StatGrid } from '@/components/ui/Stat'
 import { formatDateTime, formatDuration, formatKm, formatLitres, formatNumber, formatSmartDateTime } from '@/utils/format'
 
 export default function TripDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { can } = useAuth()
+  const { can, user } = useAuth()
   const trip = useQuery({ queryKey: ['trips', 'detail', id], queryFn: () => http.get(`/trips/${id}`) })
   const [dialog, setDialog] = useState(null)
   const vehicle = useQuery({
     queryKey: ['vehicles', 'detail', String(trip.data?.vehicleId)],
     queryFn: () => http.get(`/vehicles/${trip.data.vehicleId}`),
-    enabled: Boolean(trip.data),
+    enabled: Boolean(trip.data) && can('VEHICLE_READ'),
   })
 
   if (trip.isLoading)
@@ -55,7 +52,23 @@ export default function TripDetailPage() {
     )
   const t = trip.data
   const manage = can('TRIP_MANAGE')
+  // A driver account only starts and completes the trips it is driving.
+  const drives = !manage && can('TRIP_START') && user?.driverId != null && t.driverId === user.driverId
   const actions = []
+  if (drives) {
+    if (t.status === 'DISPATCHED')
+      actions.push(
+        <Button key="s" variant="primary" icon={PlayArrowIcon} onClick={() => setDialog('IN_PROGRESS')}>
+          Start trip
+        </Button>,
+      )
+    if (t.status === 'IN_PROGRESS')
+      actions.push(
+        <Button key="c" variant="primary" icon={StopIcon} onClick={() => setDialog('COMPLETED')}>
+          Complete trip
+        </Button>,
+      )
+  }
   if (manage) {
     if (t.status === 'PLANNED')
       actions.push(
@@ -120,7 +133,7 @@ export default function TripDetailPage() {
     <Stack spacing={2.5}>
       <PageHeader
         title={t.tripNumber}
-        breadcrumbs={[{ label: 'Trips', to: '/trips' }, { label: t.tripNumber }]}
+        breadcrumbs={[can('TRIP_READ') ? { label: 'Trips', to: '/trips' } : { label: 'My day', to: '/my-day' }, { label: t.tripNumber }]}
         meta={<StatusBadge kind="trip" value={t.status} />}
         description={`${t.startLocation} → ${t.destination} · ${t.purpose}`}
         actions={actions}
@@ -164,11 +177,11 @@ export default function TripDetailPage() {
               items={[
                 {
                   label: 'Vehicle',
-                  value: <LinkText to={`/vehicles/${t.vehicleId}`}>{t.vehiclePlate}</LinkText>,
+                  value: can('VEHICLE_READ') ? <LinkText to={`/vehicles/${t.vehicleId}`}>{t.vehiclePlate}</LinkText> : t.vehiclePlate,
                 },
                 {
                   label: 'Driver',
-                  value: <LinkText to={`/drivers/${t.driverId}`}>{t.driverName}</LinkText>,
+                  value: can('DRIVER_READ') ? <LinkText to={`/drivers/${t.driverId}`}>{t.driverName}</LinkText> : t.driverName,
                 },
                 {
                   label: 'Booking',
@@ -209,7 +222,12 @@ export default function TripDetailPage() {
           </CardBody>
         </Card>
       </Box>
-      <TransitionDialog
+      {drives && t.status === 'PLANNED' ? (
+        <InlineAlert tone="info" title="Waiting for dispatch">
+          The office has not dispatched this trip yet. You will be able to start it once it is dispatched.
+        </InlineAlert>
+      ) : null}
+      <TripTransitionDialog
         trip={t}
         status={dialog}
         vehicle={vehicle.data}
@@ -220,159 +238,5 @@ export default function TripDetailPage() {
         }}
       />
     </Stack>
-  )
-}
-
-const COPY = {
-  DISPATCHED: {
-    title: 'Dispatch trip',
-    description: 'Confirms the vehicle and driver are released for this trip. Documents and licence validity are re-checked.',
-    confirm: 'Dispatch',
-  },
-  IN_PROGRESS: {
-    title: 'Start trip',
-    description: 'Record the odometer as the vehicle leaves. Defaults to the vehicle’s current reading.',
-    confirm: 'Start trip',
-  },
-  COMPLETED: {
-    title: 'Complete trip',
-    description: 'Enter the odometer at arrival. Distance and duration are calculated automatically.',
-    confirm: 'Complete trip',
-  },
-  CANCELLED: {
-    title: 'Cancel trip',
-    description: 'The trip is kept for the record and marked cancelled. A linked booking returns to confirmed.',
-    confirm: 'Cancel trip',
-  },
-  PLANNED: { title: 'Return to planned', description: 'Undo the dispatch so the trip can be edited again.', confirm: 'Return to planned' },
-}
-
-function TransitionDialog({ trip, status, vehicle, onClose, onDone }) {
-  const [values, setValues] = useState({ startOdometer: '', endOdometer: '', fuelUsedLitres: '', maxSpeedKph: '', reason: '' })
-  const [error, setError] = useState(null)
-  const change = useApiMutation({
-    mutationFn: (body) => http.patch(`/trips/${trip.id}/status`, body),
-    invalidate: [['trips'], ['vehicles'], ['drivers'], ['bookings'], ['dashboard'], ['dispatch']],
-    success: (t) => `Trip ${t.tripNumber} is now ${t.status.toLowerCase().replace('_', ' ')}`,
-    onSuccess: () => {
-      onDone()
-      onClose()
-    },
-  })
-  if (!status) return null
-  const copy = COPY[status]
-  const set = (k) => (e) => setValues((v) => ({ ...v, [k]: e.target.value }))
-  const submit = async () => {
-    setError(null)
-    try {
-      await change.mutateAsync({ status, ...values })
-    } catch (e) {
-      setError(e)
-    }
-  }
-  return (
-    <Dialog
-      open
-      onClose={onClose}
-      title={copy.title}
-      description={copy.description}
-      size="sm"
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            Back
-          </Button>
-          <Button
-            variant={status === 'CANCELLED' ? 'danger' : 'primary'}
-            onClick={submit}
-            loading={change.isPending}
-            disabled={status === 'CANCELLED' && !values.reason.trim()}
-          >
-            {copy.confirm}
-          </Button>
-        </>
-      }
-    >
-      {/* useFlexGap so the negative margin on the distance note can pull it closer to the field above (old `-mt-2`). */}
-      <Stack spacing={2} useFlexGap>
-        {error ? (
-          <InlineAlert tone="danger" title={error.title}>
-            {error.message}
-          </InlineAlert>
-        ) : null}
-        {status === 'IN_PROGRESS' ? (
-          <Field
-            label="Start odometer"
-            hint={vehicle ? `Vehicle currently reads ${formatKm(vehicle.odometerKm)}` : undefined}
-            error={error?.fieldErrorMap?.startOdometer}
-          >
-            <Input
-              type="number"
-              inputMode="numeric"
-              placeholder={vehicle ? String(vehicle.odometerKm) : ''}
-              value={values.startOdometer}
-              onChange={set('startOdometer')}
-              trailing="km"
-              autoFocus
-            />
-          </Field>
-        ) : null}
-        {status === 'COMPLETED' ? (
-          <>
-            <Field
-              label="End odometer"
-              required
-              hint={`Started at ${formatKm(trip.startOdometer)}`}
-              error={error?.fieldErrorMap?.endOdometer}
-            >
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={trip.startOdometer}
-                value={values.endOdometer}
-                onChange={set('endOdometer')}
-                trailing="km"
-                autoFocus
-              />
-            </Field>
-            {values.endOdometer && Number(values.endOdometer) >= trip.startOdometer ? (
-              <Typography sx={{ mt: -1, fontSize: 12.5, color: 'text.muted' }}>
-                Distance will be recorded as{' '}
-                <Box component="span" sx={{ fontWeight: 500, color: 'text.primary' }}>
-                  {formatKm(Number(values.endOdometer) - trip.startOdometer)}
-                </Box>
-                .
-              </Typography>
-            ) : null}
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.5 }}>
-              <Field label="Fuel used" hint="Optional">
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.1"
-                  value={values.fuelUsedLitres}
-                  onChange={set('fuelUsedLitres')}
-                  trailing="L"
-                />
-              </Field>
-              <Field label="Max speed" hint="Optional">
-                <Input type="number" inputMode="numeric" value={values.maxSpeedKph} onChange={set('maxSpeedKph')} trailing="km/h" />
-              </Field>
-            </Box>
-          </>
-        ) : null}
-        {status === 'CANCELLED' ? (
-          <Field label="Reason" required>
-            <Textarea
-              rows={3}
-              value={values.reason}
-              onChange={set('reason')}
-              autoFocus
-              placeholder="Client cancelled, vehicle reallocated, flight delayed…"
-            />
-          </Field>
-        ) : null}
-      </Stack>
-    </Dialog>
   )
 }

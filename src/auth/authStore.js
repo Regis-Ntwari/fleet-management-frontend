@@ -4,7 +4,21 @@ import { configureAuth, http } from '@/api/client'
 
 export const SESSION_STORAGE_KEY = 'limoz.session'
 
-const toUser = (u) => (u ? { id: u.id, name: u.name, email: u.email, role: u.role, permissions: u.permissions ?? [] } : null)
+const toUser = (u) =>
+  u
+    ? {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        roleName: u.roleName ?? null,
+        roleId: u.roleId ?? null,
+        department: u.department ?? null,
+        driverId: u.driverId ?? null,
+        driverName: u.driverName ?? null,
+        permissions: u.permissions ?? [],
+      }
+    : null
 
 /** True when the user holds any of the given permission(s). No permission means "signed in is enough". */
 export function hasPermission(user, permission) {

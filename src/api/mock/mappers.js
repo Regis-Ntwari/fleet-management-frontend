@@ -11,11 +11,80 @@ export const driverById = (id) => db().drivers.find((d) => d.id === id)
 export const categoryById = (id) => db().categories.find((c) => c.id === id)
 export const plateOf = (id) => (id == null ? null : (vehicleById(id)?.plateNumber ?? 'Unknown'))
 export const driverNameOf = (id) => (id == null ? null : (driverById(id)?.fullName ?? 'Unknown'))
-// ---------- Users ----------
+// ---------- Roles, departments, users ----------
+export const roleById = (id) => db().roles.find((r) => r.id === id)
+export const roleByCode = (code) => db().roles.find((r) => r.code === code)
+export const departmentById = (id) => (id == null ? undefined : db().departments.find((d) => d.id === id))
+/** Effective permissions come from the user's role; users never hold permissions directly. */
+export const permissionsOf = (u) => roleById(u?.roleId)?.permissions ?? []
+export function toRole(r) {
+  return {
+    ...r,
+    userCount: db().users.filter((u) => u.roleId === r.id).length,
+    activeUserCount: db().users.filter((u) => u.roleId === r.id && u.active).length,
+  }
+}
+export function toDepartment(d) {
+  return {
+    ...d,
+    memberCount: db().users.filter((u) => u.departmentId === d.id && u.active).length,
+    openIncidentCount: db().incidents.filter((i) => i.departmentId === d.id && ['OPEN', 'UNDER_INVESTIGATION'].includes(i.status)).length,
+  }
+}
+/** True when the user's role carries the permission (or any of the listed permissions). */
+export function userCan(u, permission) {
+  const list = Array.isArray(permission) ? permission : [permission]
+  const held = permissionsOf(u)
+  return list.some((p) => held.includes(p))
+}
+/** The driver profile an account acts for in the driver workspace, or null for office staff. */
+export const driverOfUser = (u) => (u?.driverId ? driverById(u.driverId) : null) ?? null
+/** Active accounts linked to a driver profile, used to notify the driver in-app. */
+export const userIdsForDriver = (driverId) =>
+  db()
+    .users.filter((u) => u.active && u.driverId === driverId)
+    .map((u) => u.id)
+/** Active accounts whose role carries the permission, used to notify the people who can act. */
+export const userIdsWithPermission = (permission) =>
+  db()
+    .users.filter((u) => u.active && userCan(u, permission))
+    .map((u) => u.id)
 export function toUser(u) {
   const { password: _password, ...rest } = u
-  return rest
+  const role = roleById(u.roleId)
+  const department = departmentById(u.departmentId)
+  const driver = driverOfUser(u)
+  return {
+    ...rest,
+    driverId: driver?.id ?? null,
+    driverName: driver?.fullName ?? null,
+    role: role?.code ?? null,
+    roleName: role?.name ?? 'No role',
+    departmentName: department?.name ?? null,
+  }
 }
+/** Queues an in-app notification for each listed user (deduplicated, skips the actor). */
+export function pushNotification(userIds, { title, body, link, kind = 'WORKFLOW' }, actorId = null) {
+  const d = db()
+  const now = new Date().toISOString()
+  for (const userId of new Set(userIds)) {
+    if (userId === actorId) continue
+    d.notifications.unshift({
+      id: (d.sequences.notification = (d.sequences.notification ?? 0) + 1),
+      userId,
+      title,
+      body,
+      createdAt: now,
+      readAt: null,
+      link,
+      kind,
+    })
+  }
+}
+export const departmentMemberIds = (departmentId) =>
+  db()
+    .users.filter((u) => u.departmentId === departmentId && u.active)
+    .map((u) => u.id)
 // ---------- Categories ----------
 export function toCategory(c) {
   return { ...c, vehicleCount: db().vehicles.filter((v) => v.categoryId === c.id && !v.archived).length }
@@ -244,8 +313,55 @@ export function toFuel(f, previous) {
     enteredByName: userName(f.enteredById),
     notes: f.notes,
     anomaly,
+    allocationId: f.allocationId ?? null,
+    allocationNumber: f.allocationId ? (db().fuelRequests.find((r) => r.id === f.allocationId)?.requestNumber ?? null) : null,
     createdAt: f.createdAt,
     updatedAt: f.updatedAt,
+  }
+}
+// ---------- Fuel allocations ----------
+/**
+ * A fuel allocation is the fleet officer's instruction to a driver ("fill 40 L at SP Kacyiru
+ * before Friday"). The driver fills up, submits the receipt as proof, and the officer verifies
+ * it into a fuel transaction. The proof itself stays on the row (the real backend keeps it in
+ * the file service and returns a URL in its place).
+ */
+export function toFuelRequest(r) {
+  const submission = r.submission
+    ? {
+        ...r.submission,
+        totalAmount: Math.round(r.submission.litres * r.submission.pricePerLitre),
+        submittedByName: r.submission.submittedById ? userName(r.submission.submittedById) : driverNameOf(r.driverId),
+      }
+    : null
+  const fuelTransaction = r.fuelTransactionId ? db().fuel.find((f) => f.id === r.fuelTransactionId) : null
+  return {
+    id: r.id,
+    requestNumber: r.requestNumber,
+    vehicleId: r.vehicleId,
+    vehiclePlate: plateOf(r.vehicleId) ?? '',
+    vehicleFuelType: vehicleById(r.vehicleId)?.fuelType ?? null,
+    vehicleOdometerKm: vehicleById(r.vehicleId)?.odometerKm ?? null,
+    driverId: r.driverId,
+    driverName: driverNameOf(r.driverId) ?? '',
+    litresAllocated: r.litresAllocated,
+    station: r.station,
+    dueAt: r.dueAt,
+    purpose: r.purpose,
+    notes: r.notes,
+    status: r.status,
+    createdById: r.createdById,
+    createdByName: userName(r.createdById),
+    submission,
+    reviewNote: r.reviewNote,
+    reviewedByName: r.reviewedById ? userName(r.reviewedById) : null,
+    reviewedAt: r.reviewedAt,
+    fuelTransactionId: r.fuelTransactionId,
+    fuelTotalAmount: fuelTransaction ? Math.round(fuelTransaction.litres * fuelTransaction.pricePerLitre) : null,
+    overdue: Boolean(r.dueAt && ['PENDING', 'RETURNED'].includes(r.status) && r.dueAt < new Date().toISOString()),
+    history: (r.history ?? []).map((h) => ({ ...h, byName: h.byId ? userName(h.byId) : driverNameOf(r.driverId) })),
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
   }
 }
 export function expectedL100(categoryId) {
@@ -351,6 +467,8 @@ export function toIncident(i) {
     vehiclePlate: plateOf(i.vehicleId) ?? '',
     driverId: i.driverId,
     driverName: driverNameOf(i.driverId),
+    departmentId: i.departmentId ?? null,
+    departmentName: departmentById(i.departmentId)?.name ?? null,
     occurredAt: i.occurredAt,
     location: i.location,
     type: i.type,

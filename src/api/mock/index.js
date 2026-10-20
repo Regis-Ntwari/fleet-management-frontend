@@ -1,12 +1,15 @@
 import { AxiosError, AxiosHeaders } from 'axios'
 import { getDb } from './db'
-import { MockHttpError, ROLE_PERMISSIONS, unauthorized } from './core'
+import { MockHttpError, unauthorized } from './core'
+import { permissionsOf, roleById } from './mappers'
 import { assertPermission, resolve } from './router'
 import { parseToken } from './handlers/auth'
 import { config } from '@/config/env'
 
 // Registering the handler modules populates the router.
 import './handlers/reference'
+import './handlers/roles'
+import './handlers/departments'
 import './handlers/users'
 import './handlers/system'
 import './handlers/vehicles'
@@ -14,7 +17,9 @@ import './handlers/drivers'
 import './handlers/assignments'
 import './handlers/trips'
 import './handlers/bookings'
+import './handlers/fuelAllocations' // before ./handlers/fuel so /fuel/allocations/* is matched ahead of /fuel/:id
 import './handlers/fuel'
+import './handlers/me'
 import './handlers/maintenance'
 import './handlers/incidents'
 import './handlers/documents'
@@ -123,7 +128,7 @@ export async function mockAdapter(config) {
     if (!match.route.public) {
       if (!user) throw unauthorized(token ? 'Your session has expired. Please sign in again.' : 'Authentication is required.')
       if (!user.active) throw unauthorized('This account has been deactivated.')
-      assertPermission(user, ROLE_PERMISSIONS[user.role], match.route.permission)
+      assertPermission(roleById(user.roleId)?.name, permissionsOf(user), match.route.permission)
     }
     const result = await match.route.handler({
       method,

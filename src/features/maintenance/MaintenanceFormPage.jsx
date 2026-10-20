@@ -106,7 +106,7 @@ export default function MaintenanceFormPage() {
         vehicleId: m.vehicleId,
         complaint: m.complaint,
         type: m.type,
-        workshop: m.workshop,
+        workshop: m.workshop ?? '',
         technicianName: m.technicianName ?? '',
         expectedCompletionAt: m.expectedCompletionAt ? toInputDateTime(m.expectedCompletionAt) : '',
         odometerKm: m.odometerKm,

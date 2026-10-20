@@ -1,8 +1,19 @@
 import { format } from 'date-fns'
 import { get, post, put, patch, del } from '../router'
 import { getDb, nextId, persist } from '../db'
-import { badRequest, businessRule, conflict, inDateRange, matchesText, notFound, paginate } from '../core'
-import { currentAssignmentOf, diff, recordAudit, toMaintenance, toSchedule } from '../mappers'
+import { badRequest, businessRule, conflict, forbidden, inDateRange, matchesText, notFound, paginate } from '../core'
+import {
+  currentAssignmentOf,
+  currentAssignmentOfDriver,
+  diff,
+  driverOfUser,
+  pushNotification,
+  recordAudit,
+  toMaintenance,
+  toSchedule,
+  userCan,
+  userIdsWithPermission,
+} from '../mappers'
 import { REFERENCE } from './reference'
 
 const auditM = (user, action, row, changes = null) =>
@@ -95,9 +106,20 @@ get(
   { permission: 'MAINTENANCE_READ' },
 )
 
-get('/maintenance/workshops', () => Array.from(new Set(getDb().maintenance.map((m) => m.workshop))).sort(), {
-  permission: 'MAINTENANCE_READ',
-})
+get(
+  '/maintenance/workshops',
+  () =>
+    Array.from(
+      new Set(
+        getDb()
+          .maintenance.map((m) => m.workshop)
+          .filter(Boolean),
+      ),
+    ).sort(),
+  {
+    permission: 'MAINTENANCE_READ',
+  },
+)
 
 get('/maintenance/:id', ({ params }) => toMaintenance(findRecord(params.id)), { permission: 'MAINTENANCE_READ' })
 
@@ -144,6 +166,99 @@ post(
     return toMaintenance(row)
   },
   { permission: 'MAINTENANCE_MANAGE' },
+)
+
+/**
+ * A driver reports a problem with the vehicle they are driving. The record opens as REPORTED with
+ * no workshop yet; the workshop team is notified and takes it from there. Office staff with
+ * MAINTENANCE_MANAGE can use the same endpoint for any vehicle.
+ */
+post(
+  '/maintenance/report',
+  ({ body, user }) => {
+    const d = getDb()
+    const input = body ?? {}
+    const errors = []
+    let vehicle = null
+    if (userCan(user, 'MAINTENANCE_MANAGE')) {
+      vehicle = d.vehicles.find((v) => v.id === Number(input.vehicleId) && !v.archived) ?? null
+      if (!vehicle) errors.push({ field: 'vehicleId', message: 'Choose a vehicle.' })
+    } else {
+      const driver = driverOfUser(user)
+      if (!driver) throw forbidden('Your account is not linked to a driver profile.')
+      const onTrip = d.trips.find((t) => t.driverId === driver.id && t.status === 'IN_PROGRESS')
+      const assignment = currentAssignmentOfDriver(driver.id)
+      const allowed = [onTrip?.vehicleId, assignment?.vehicleId].filter((x) => x != null)
+      if (!allowed.length) throw businessRule('You have no vehicle assigned right now, so there is nothing to report.')
+      const wanted = input.vehicleId ? Number(input.vehicleId) : allowed[0]
+      if (!allowed.includes(wanted)) throw forbidden('You can only report the vehicle you are driving.')
+      vehicle = d.vehicles.find((v) => v.id === wanted)
+    }
+    const complaint = input.complaint?.trim()
+    if (!complaint || complaint.length < 5) errors.push({ field: 'complaint', message: 'Describe the problem in a few words.' })
+    const type = input.type ?? 'CORRECTIVE'
+    if (!REFERENCE.maintenanceTypes.some((t) => t.value === type)) errors.push({ field: 'type', message: 'Choose a maintenance type.' })
+    const odo = input.odometerKm === '' || input.odometerKm == null ? (vehicle?.odometerKm ?? 0) : Number(input.odometerKm)
+    if (!Number.isFinite(odo) || odo < 0) errors.push({ field: 'odometerKm', message: 'Enter the odometer reading.' })
+    else if (vehicle && odo < vehicle.odometerKm - 50)
+      errors.push({ field: 'odometerKm', message: `The vehicle already reads ${vehicle.odometerKm.toLocaleString()} km.` })
+    if (errors.length) throw badRequest('Please correct the highlighted fields.', errors)
+    if (
+      d.maintenance.some(
+        (m) => m.vehicleId === vehicle.id && OPEN.includes(m.status) && m.complaint.toLowerCase() === complaint.toLowerCase(),
+      )
+    )
+      throw conflict(`This problem has already been reported for ${vehicle.plateNumber} and is still open.`)
+    const now = new Date()
+    const id = nextId('maintenance')
+    const urgent = Boolean(input.urgent)
+    const row = {
+      id,
+      maintenanceNumber: `MT-${format(now, 'yyMM')}-${String(id).padStart(4, '0')}`,
+      vehicleId: vehicle.id,
+      reportedAt: now.toISOString(),
+      reportedById: user.id,
+      complaint,
+      type,
+      technicianName: null,
+      workshop: null,
+      startedAt: null,
+      expectedCompletionAt: null,
+      completedAt: null,
+      odometerKm: Math.round(odo),
+      diagnosis: null,
+      servicePerformed: null,
+      parts: [],
+      laborCost: 0,
+      otherCost: 0,
+      status: 'REPORTED',
+      comments:
+        [urgent ? 'Driver marked this as urgent: the vehicle should not be driven.' : null, input.comments?.trim() || null]
+          .filter(Boolean)
+          .join('\n') || null,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    }
+    d.maintenance.push(row)
+    if (urgent && ['AVAILABLE', 'ASSIGNED', 'RESERVED'].includes(vehicle.status)) {
+      vehicle.status = 'OUT_OF_SERVICE'
+      vehicle.updatedAt = now.toISOString()
+    }
+    auditM(user, 'CREATE', row)
+    pushNotification(
+      userIdsWithPermission('MAINTENANCE_MANAGE'),
+      {
+        title: `${urgent ? 'Urgent: ' : ''}${vehicle.plateNumber} reported for maintenance`,
+        body: `${complaint} — reported by ${user.firstName} ${user.lastName}.`,
+        link: `/maintenance/${row.id}`,
+        kind: urgent ? 'ALERT' : 'WORKFLOW',
+      },
+      user.id,
+    )
+    persist()
+    return toMaintenance(row)
+  },
+  { permission: ['MAINTENANCE_REPORT', 'MAINTENANCE_MANAGE'] },
 )
 
 put(

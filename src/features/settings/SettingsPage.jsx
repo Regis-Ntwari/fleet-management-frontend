@@ -97,7 +97,8 @@ function ProfileTab() {
           ) : (
             <DescriptionList
               items={[
-                { label: 'Role', value: roleMeta?.label ?? user.role },
+                { label: 'Role', value: roleMeta?.label ?? user.roleName ?? user.role },
+                { label: 'Department', value: user.department?.name },
                 { label: 'Phone', value: me.data?.profile?.phone },
                 {
                   label: 'Permissions',
@@ -116,7 +117,7 @@ function ProfileTab() {
             />
           )}
           <Typography sx={{ mt: 2, fontSize: 12.5, color: 'text.muted' }}>
-            Name, email and role are managed by an IT administrator under Users.
+            Name, email, role and department are managed by an IT administrator under Users.
           </Typography>
         </CardBody>
       </Card>

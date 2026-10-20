@@ -13,11 +13,12 @@ export function usePagedQuery(key, url, params, options = {}) {
   })
 }
 
-export function useVehicleOptions(params = {}) {
+export function useVehicleOptions(params = {}, queryOptions = {}) {
   const q = useQuery({
     queryKey: ['vehicles', 'options', params],
     queryFn: () => http.get('/vehicles/options', { params }),
     staleTime: 60_000,
+    ...queryOptions,
   })
   const options = (q.data ?? []).map((v) => ({
     value: v.id,

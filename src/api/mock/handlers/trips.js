@@ -1,7 +1,7 @@
 import { addDays, format, startOfDay } from 'date-fns'
 import { get, post, put, patch } from '../router'
 import { getDb, nextId, persist } from '../db'
-import { badRequest, businessRule, inDateRange, matchesText, notFound, paginate } from '../core'
+import { badRequest, businessRule, forbidden, inDateRange, matchesText, notFound, paginate } from '../core'
 import {
   currentAssignmentOf,
   currentAssignmentOfDriver,
@@ -13,6 +13,7 @@ import {
   toDriverSummary,
   toTrip,
   toVehicleSummary,
+  userCan,
 } from '../mappers'
 import { assertDriverDispatchable, assertVehicleDispatchable } from './assignments'
 
@@ -91,11 +92,16 @@ function assertNoOverlap(vehicleId, driverId, scheduledStartAt, excludeTripId = 
     )
 }
 
+/** Office staff see the whole fleet; a driver account only sees trips where it is the driver. */
+const scopedDriverId = (user) => (userCan(user, 'TRIP_READ') ? null : (user.driverId ?? -1))
+
 get(
   '/trips',
-  ({ query }) => {
+  ({ query, user }) => {
+    const scope = scopedDriverId(user)
     const list = getDb()
-      .trips.map(toTrip)
+      .trips.filter((t) => scope == null || t.driverId === scope)
+      .map(toTrip)
       .filter((t) =>
         matchesText([t.tripNumber, t.vehiclePlate, t.driverName, t.customerName, t.destination, t.startLocation, t.bookingNumber], query.q),
       )
@@ -105,10 +111,19 @@ get(
       .filter((t) => inDateRange(t.scheduledStartAt, query.from, query.to))
     return paginate(list, query, 'scheduledStartAt,desc')
   },
-  { permission: 'TRIP_READ' },
+  { permission: ['TRIP_READ', 'TRIP_START'] },
 )
 
-get('/trips/:id', ({ params }) => toTrip(findTrip(params.id)), { permission: 'TRIP_READ' })
+get(
+  '/trips/:id',
+  ({ params, user }) => {
+    const row = findTrip(params.id)
+    const scope = scopedDriverId(user)
+    if (scope != null && row.driverId !== scope) throw forbidden('This trip is assigned to another driver.')
+    return toTrip(row)
+  },
+  { permission: ['TRIP_READ', 'TRIP_START'] },
+)
 
 post(
   '/trips',
@@ -210,6 +225,11 @@ patch(
   ({ params, body, user }) => {
     const row = findTrip(params.id)
     const { status, startOdometer, endOdometer, reason, fuelUsedLitres, maxSpeedKph } = body ?? {}
+    // A driver may only start and complete trips they are driving; dispatching and cancelling stay with the office.
+    if (!userCan(user, 'TRIP_MANAGE')) {
+      if (!user.driverId || row.driverId !== user.driverId) throw forbidden('This trip is assigned to another driver.')
+      if (!['IN_PROGRESS', 'COMPLETED'].includes(status)) throw forbidden('Drivers can only start and complete their own trips.')
+    }
     if (!transitions[row.status]?.includes(status))
       throw businessRule(
         `A ${row.status.toLowerCase().replace(/_/g, ' ')} trip cannot move to ${String(status).toLowerCase().replace(/_/g, ' ')}.`,
@@ -306,7 +326,7 @@ patch(
     persist()
     return toTrip(row)
   },
-  { permission: 'TRIP_MANAGE' },
+  { permission: ['TRIP_MANAGE', 'TRIP_START'] },
 )
 
 // ---------- Dispatch board ----------

@@ -50,4 +50,18 @@ describe('key screens mount against the mock API', () => {
     renderAt('/reports')
     expect(await screen.findByText(/daily fleet report/i, {}, { timeout: 5000 })).toBeInTheDocument()
   })
+
+  it('a driver lands on their workspace with the vehicle, trips and fuel allocations', async () => {
+    useAuthStore.getState().clearSession()
+    queryClient.clear()
+    await signInAs('driver@limoz.rw')
+    const driver = getDb().drivers[0]
+    renderAt('/')
+    expect(await screen.findByRole('heading', { name: /my day/i }, { timeout: 5000 })).toBeInTheDocument()
+    expect(await screen.findByText(new RegExp(driver.employeeNumber), {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /start trip/i }, { timeout: 5000 })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /submit receipt/i }, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /report a problem/i }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('link', { name: /dashboard/i })).not.toBeInTheDocument()
+  })
 })

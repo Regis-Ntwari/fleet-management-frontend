@@ -28,10 +28,10 @@ export function resolve(method, path) {
   }
   return null
 }
-export function assertPermission(user, permissions, required) {
+export function assertPermission(roleName, permissions, required) {
   if (!required) return
   const needed = Array.isArray(required) ? required : [required]
   if (!needed.some((p) => permissions.includes(p))) {
-    throw forbidden(`Your role (${user?.role ?? 'unknown'}) does not allow this action. Required: ${needed.join(' or ')}.`)
+    throw forbidden(`Your role (${roleName ?? 'none'}) does not allow this action. Required: ${needed.join(' or ')}.`)
   }
 }

@@ -130,16 +130,14 @@ get(
   { permission: 'VEHICLE_READ' },
 )
 
+/** Department suggestions for vehicles: the organisation's departments plus any legacy free-text values. */
 get(
   '/vehicles/departments',
-  () =>
-    Array.from(
-      new Set(
-        getDb()
-          .vehicles.map((v) => v.department)
-          .filter(Boolean),
-      ),
-    ).sort(),
+  () => {
+    const d = getDb()
+    const names = d.departments.filter((x) => x.active).map((x) => x.name)
+    return Array.from(new Set([...names, ...d.vehicles.map((v) => v.department).filter(Boolean)])).sort()
+  },
   { permission: 'VEHICLE_READ' },
 )
 

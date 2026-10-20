@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import AddIcon from '@mui/icons-material/Add'
@@ -9,36 +9,46 @@ import PersonOffIcon from '@mui/icons-material/PersonOff'
 import HowToRegIcon from '@mui/icons-material/HowToReg'
 import { http } from '@/api/client'
 import { useAuth } from '@/app/AuthProvider'
-import { useOptions } from '@/app/ReferenceProvider'
 import { useSearchState } from '@/hooks/useSearchState'
-import { useApiMutation, usePagedQuery } from '@/features/common/hooks'
+import { useApiMutation, useDriverOptions, usePagedQuery } from '@/features/common/hooks'
 import { ListPage } from '@/features/common/ListPage'
+import { useDepartments, useRoles } from '@/features/admin/api'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Select, Field, Input } from '@/components/ui/Field'
+import { Combobox } from '@/components/ui/Combobox'
 import { Badge, StatusBadge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { SegmentedControl } from '@/components/ui/Tabs'
 import { ConfirmDialog, Dialog } from '@/components/ui/Dialog'
-import { EmptyState, InlineAlert } from '@/components/ui/Feedback'
+import { EmptyState, InlineAlert, LinkText } from '@/components/ui/Feedback'
 import { formatRelative, formatDate } from '@/utils/format'
 
 export default function UsersPage() {
   const [state, update, reset] = useSearchState({ size: 20 })
-  const { user: me } = useAuth()
-  const roles = useOptions('role')
+  const { user: me, can } = useAuth()
+  const roles = useRoles()
+  const departments = useDepartments()
   const [editing, setEditing] = useState(null)
   const [open, setOpen] = useState(false)
   const [resetting, setResetting] = useState(null)
   const [toggling, setToggling] = useState(null)
   const params = useMemo(
-    () => ({ q: state.q, role: state.role, active: state.active, page: state.page, size: state.size, sort: state.sort }),
+    () => ({
+      q: state.q,
+      roleId: state.roleId,
+      departmentId: state.departmentId,
+      active: state.active,
+      page: state.page,
+      size: state.size,
+      sort: state.sort,
+    }),
     [state],
   )
   const query = usePagedQuery(['users', 'list'], '/users', params)
   const toggle = useApiMutation({
     mutationFn: (u) => http.patch(`/users/${u.id}/status`, { active: !u.active }),
-    invalidate: [['users']],
+    invalidate: [['users'], ['roles'], ['departments']],
     success: (u) => `${u.firstName} ${u.lastName} ${u.active ? 'activated' : 'deactivated'}`,
     onSuccess: () => setToggling(null),
   })
@@ -66,7 +76,33 @@ export default function UsersPage() {
         </Box>
       ),
     },
-    { key: 'role', header: 'Role', sortKey: 'role', render: (u) => <StatusBadge kind="role" value={u.role} size="sm" dot={false} /> },
+    {
+      key: 'role',
+      header: 'Role',
+      sortKey: 'roleName',
+      render: (u) => (
+        <Box component="span" sx={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.25 }}>
+          <StatusBadge kind="role" value={u.role} size="sm" dot={false} />
+          {u.driverName ? (
+            <Box component="span" sx={{ fontSize: 11.5, color: 'text.muted' }}>
+              Driver profile: {u.driverName}
+            </Box>
+          ) : null}
+        </Box>
+      ),
+    },
+    {
+      key: 'department',
+      header: 'Department',
+      sortKey: 'departmentName',
+      render: (u) =>
+        u.departmentName ?? (
+          <Box component="span" sx={{ color: 'text.faint' }}>
+            —
+          </Box>
+        ),
+      hideBelow: 'md',
+    },
     { key: 'phone', header: 'Phone', hideBelow: 'lg' },
     {
       key: 'active',
@@ -128,7 +164,25 @@ export default function UsersPage() {
     <Box>
       <PageHeader
         title="Users"
-        description="Accounts and roles. Permissions are enforced on the backend for every request."
+        description={
+          <>
+            Every account has one role and belongs to one department. Access comes from the role
+            {can('ROLE_MANAGE') ? (
+              <>
+                {' '}
+                (<LinkText to="/admin/roles">manage roles</LinkText>)
+              </>
+            ) : null}
+            ; departments decide who is notified about incidents
+            {can('DEPARTMENT_MANAGE') ? (
+              <>
+                {' '}
+                (<LinkText to="/admin/departments">manage departments</LinkText>)
+              </>
+            ) : null}
+            .
+          </>
+        }
         actions={
           <Button
             variant="primary"
@@ -148,20 +202,33 @@ export default function UsersPage() {
         reset={reset}
         query={query}
         columns={columns}
-        searchPlaceholder="Name, email, phone…"
+        searchPlaceholder="Name, email, phone, role, department…"
         defaultSort="lastName,asc"
         filters={
           <>
             <Select
-              value={state.role ?? ''}
-              onChange={(e) => update({ role: e.target.value })}
+              value={state.roleId ?? ''}
+              onChange={(e) => update({ roleId: e.target.value })}
               compact
               placeholder="Any role"
               aria-label="Role"
             >
-              {roles.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
+              {roles.roles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </Select>
+            <Select
+              value={state.departmentId ?? ''}
+              onChange={(e) => update({ departmentId: e.target.value })}
+              compact
+              placeholder="Any department"
+              aria-label="Department"
+            >
+              {departments.departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
                 </option>
               ))}
             </Select>
@@ -179,7 +246,14 @@ export default function UsersPage() {
         }
         empty={<EmptyState title="No users match" compact />}
       />
-      <UserDialog open={open} onClose={() => setOpen(false)} user={editing} roles={roles} />
+      <UserDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        user={editing}
+        roles={roles.roles}
+        departments={departments.departments}
+        isSelf={editing?.id === me.id}
+      />
       <ResetDialog user={resetting} onClose={() => setResetting(null)} />
       <ConfirmDialog
         open={Boolean(toggling)}
@@ -199,32 +273,48 @@ export default function UsersPage() {
   )
 }
 
-function UserDialog({ open, onClose, user, roles }) {
+function UserDialog({ open, onClose, user, roles, departments, isSelf }) {
   const isEdit = Boolean(user)
   const [error, setError] = useState(null)
+  const drivers = useDriverOptions()
   const {
     register,
     handleSubmit,
     reset,
+    watch,
+    control,
     setError: setFieldError,
     formState: { errors },
   } = useForm({
     values: user
-      ? { firstName: user.firstName, lastName: user.lastName, email: user.email, phone: user.phone ?? '', role: user.role, password: '' }
-      : { firstName: '', lastName: '', email: '', phone: '', role: 'VIEWER', password: '' },
+      ? {
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          phone: user.phone ?? '',
+          roleId: String(user.roleId ?? ''),
+          departmentId: String(user.departmentId ?? ''),
+          driverId: user.driverId ?? '',
+          password: '',
+        }
+      : { firstName: '', lastName: '', email: '', phone: '', roleId: '', departmentId: '', driverId: '', password: '' },
   })
+  const selectedRole = roles.find((r) => String(r.id) === String(watch('roleId')))
+  const driverRole = Boolean(selectedRole?.permissions?.some((p) => ['TRIP_START', 'FUEL_SUBMIT', 'MAINTENANCE_REPORT'].includes(p)))
   const save = useApiMutation({
-    mutationFn: (v) =>
-      isEdit
-        ? http.put(`/users/${user.id}`, {
-            firstName: v.firstName,
-            lastName: v.lastName,
-            email: v.email,
-            phone: v.phone || null,
-            role: v.role,
-          })
-        : http.post('/users', v),
-    invalidate: [['users']],
+    mutationFn: (v) => {
+      const body = {
+        firstName: v.firstName,
+        lastName: v.lastName,
+        email: v.email,
+        phone: v.phone || null,
+        roleId: Number(v.roleId),
+        departmentId: Number(v.departmentId),
+        driverId: v.driverId ? Number(v.driverId) : null,
+      }
+      return isEdit ? http.put(`/users/${user.id}`, body) : http.post('/users', { ...body, password: v.password })
+    },
+    invalidate: [['users'], ['roles'], ['departments']],
     success: isEdit ? 'User updated' : 'User created',
     setError: setFieldError,
     onSuccess: () => {
@@ -241,6 +331,7 @@ function UserDialog({ open, onClose, user, roles }) {
     }
   })
   if (!open) return null
+  const activeDepartments = departments.filter((d) => d.active || d.id === user?.departmentId)
   return (
     <Dialog
       open
@@ -280,14 +371,67 @@ function UserDialog({ open, onClose, user, roles }) {
         <Field label="Phone" error={errors.phone?.message}>
           <Input type="tel" {...register('phone')} />
         </Field>
-        <Field label="Role" required error={errors.role?.message}>
-          <Select {...register('role')}>
+        <Field
+          label="Role"
+          required
+          error={errors.roleId?.message}
+          hint={isSelf ? 'You cannot change your own role.' : (selectedRole?.description ?? 'Decides what this person can do.')}
+        >
+          <Select
+            {...register('roleId', { required: 'Choose a role' })}
+            placeholder="Choose role"
+            disabled={isSelf}
+            invalid={!!errors.roleId}
+          >
             {roles.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
+              <option key={r.id} value={r.id}>
+                {r.name}
               </option>
             ))}
           </Select>
+        </Field>
+        <Field
+          label="Department"
+          required
+          error={errors.departmentId?.message}
+          hint="Incidents assigned to the department reach this person."
+        >
+          <Select
+            {...register('departmentId', { required: 'Choose a department' })}
+            placeholder="Choose department"
+            invalid={!!errors.departmentId}
+          >
+            {activeDepartments.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field
+          label="Driver profile"
+          error={errors.driverId?.message}
+          hint={
+            driverRole
+              ? 'Required for drivers: the trips, fuel allocations and vehicle shown in "My day" come from this driver record.'
+              : 'Optional. Link the account to a driver record to open the driver workspace for it.'
+          }
+          span
+        >
+          <Controller
+            control={control}
+            name="driverId"
+            render={({ field }) => (
+              <Combobox
+                options={drivers.options}
+                value={field.value}
+                onChange={(v) => field.onChange(v ?? '')}
+                loading={drivers.isLoading}
+                invalid={!!errors.driverId}
+                placeholder={driverRole ? 'Choose the driver record' : 'Not a driver'}
+              />
+            )}
+          />
         </Field>
         {!isEdit ? (
           <Field
@@ -295,6 +439,7 @@ function UserDialog({ open, onClose, user, roles }) {
             required
             error={errors.password?.message}
             hint="At least 10 characters. Stored hashed with BCrypt on the backend."
+            span
           >
             <Input
               type="password"

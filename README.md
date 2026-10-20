@@ -32,19 +32,19 @@ npm run dev            # http://localhost:5173
 
 Sign in with any demo account; the password for all of them is `Limoz#2026`. The list is also shown on the sign-in page.
 
-| Email | Role |
-| --- | --- |
-| admin@limoz.rw | Super admin |
-| it@limoz.rw | IT admin |
-| management@limoz.rw | Management |
-| fleet@limoz.rw | Fleet manager |
-| officer@limoz.rw | Fleet officer |
-| dispatch@limoz.rw | Dispatcher |
-| workshop@limoz.rw | Workshop manager |
-| technician@limoz.rw | Technician |
-| finance@limoz.rw | Finance |
-| driver@limoz.rw | Driver |
-| viewer@limoz.rw | Viewer (read-only) |
+| Email | Role | Department |
+| --- | --- | --- |
+| admin@limoz.rw | Super admin | IT |
+| it@limoz.rw | IT admin | IT |
+| management@limoz.rw | Management | Management |
+| fleet@limoz.rw | Fleet manager | Fleet Operations |
+| officer@limoz.rw | Fleet officer | Fleet Operations |
+| dispatch@limoz.rw | Dispatcher | Fleet Operations |
+| workshop@limoz.rw | Workshop manager | Workshop |
+| technician@limoz.rw | Technician | Workshop |
+| finance@limoz.rw | Finance | Finance |
+| driver@limoz.rw | Driver (linked to driver profile DRV-001) | VIP Transfers |
+| viewer@limoz.rw | Viewer (read-only) | Corporate |
 
 Other scripts:
 
@@ -116,7 +116,10 @@ The mock lives in `src/api/mock/`. It is a small router (`router.js`) with handl
 - Data is regenerated each calendar day so "today" figures stay meaningful. **Settings → System → Reset demo data** regenerates it on demand.
 - **Settings → System → Go offline** makes every request fail with a network error so you can review error states.
 - Handlers throw `badRequest`, `conflict`, `businessRule`, `forbidden`, `notFound` from `core.js`; the adapter turns those into the backend's error body: `{ timestamp, status, error, message, path, fieldErrors? }`.
-- Role → permission mapping is in `core.js` (`ROLE_PERMISSIONS`) and should match the backend's seed.
+- **Access model.** Permissions are the only static list (`PERMISSIONS` in `core.js`). Roles are database rows that bundle permissions and can be created, edited and deleted under **Administration → Roles**; users hold exactly one role and get their permissions through it (`permissionsOf` in `mappers.js`). `SUPER_ADMIN` is the one system role: it always carries every permission and cannot be deleted. `DEFAULT_ROLES` and `DEFAULT_DEPARTMENTS` in `core.js` seed the tables and should match the backend's seed.
+- **Departments.** Every user belongs to one department (**Administration → Departments**). An incident is assigned to a department when reported; everyone in it gets a notification. Moving an incident to another department goes through `PATCH /incidents/{id}/department` and requires a note, which is kept in the incident history and the audit log. The incident edit form never changes the department.
+- **Drivers.** A driver signs in to a workspace of their own (**My day**, `/my-day`) rather than the dashboard. The Driver role carries exactly three permissions: `TRIP_START` (start and complete own trips), `FUEL_SUBMIT` (fill up against an allocation and submit the receipt) and `MAINTENANCE_REPORT` (report the vehicle they are driving). What "own" means comes from the driver profile linked to the account (`driverId` on the user, set under **Administration → Users**); `GET /me/workspace` returns that driver's vehicle, trips, fuel allocations and reported problems. Trip and allocation endpoints scope themselves to that driver when the caller lacks the office-wide read permission.
+- **Fuel allocations.** A fleet officer decides how much fuel a driver may put in a vehicle (`POST /fuel/allocations`, **Fuel → Allocations**). The driver fills up, enters the receipt and attaches a photo or PDF of it (`PATCH /fuel/allocations/{id}/submit`), and the officer verifies it (`…/verify`), which is what creates the fuel transaction, or returns it with a note (`…/return`) for the driver to fix and resubmit. A receipt more than 10% over the allocation is refused; odometer and duplicate-receipt rules are the same as for directly recorded fuel. The proof is kept on the allocation in the mock; the backend stores it in its file service and returns a URL in its place.
 
 The handler files double as a readable specification of the endpoints and rules the Spring Boot service must implement.
 
@@ -124,7 +127,7 @@ The handler files double as a readable specification of the endpoints and rules 
 
 | Resource | Endpoints |
 | --- | --- |
-| Auth | `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me`, `POST /auth/change-password` |
+| Auth | `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me`, `POST /auth/change-password`, `GET /me/workspace` |
 | Reference | `GET /reference`, `GET/POST/PUT/DELETE /vehicle-categories` |
 | Dashboard | `GET /dashboard/{summary, fleet-status, distance-trend, utilization, fuel-trend, maintenance, cost-by-vehicle, availability-trend, alerts, daily-position}` |
 | Vehicles | `GET/POST /vehicles`, `GET/PUT/DELETE /vehicles/{id}`, `PATCH /vehicles/{id}/status`, `GET /vehicles/{id}/{trips, fuel, maintenance, schedules, assignments, documents, incidents, alerts, costs, movements, activity}`, `GET /vehicles/options`, `GET /vehicles/departments` |
@@ -132,13 +135,13 @@ The handler files double as a readable specification of the endpoints and rules 
 | Assignments | `GET/POST /assignments`, `PATCH /assignments/{id}/{end, cancel}` |
 | Trips | `GET/POST /trips`, `GET/PUT /trips/{id}`, `PATCH /trips/{id}/status`, `GET /dispatch/board` |
 | Bookings | `GET/POST /bookings`, `GET/PUT /bookings/{id}`, `PATCH /bookings/{id}/{confirm, assign, cancel}`, `GET /customers` |
-| Fuel | `GET/POST /fuel`, `GET/PUT/DELETE /fuel/{id}`, `GET /fuel/summary`, `GET /fuel/stations` |
-| Maintenance | `GET/POST /maintenance`, `GET/PUT /maintenance/{id}`, `PATCH /maintenance/{id}/status`, `GET /maintenance/{summary, workshops}`, `GET/POST/PUT/DELETE /maintenance-schedules`, `GET/POST/PUT /spare-parts`, `PATCH /spare-parts/{id}/stock` |
-| Incidents | `GET/POST /incidents`, `GET/PUT /incidents/{id}`, `PATCH /incidents/{id}/status`, `POST /incidents/{id}/attachments`, `GET /incidents/summary` |
+| Fuel | `GET /fuel/allocations`, `GET /fuel/allocations/summary`, `GET/PUT /fuel/allocations/{id}`, `POST /fuel/allocations`, `PATCH /fuel/allocations/{id}/{submit, verify, return, cancel}`, `GET/POST /fuel`, `GET/PUT/DELETE /fuel/{id}`, `GET /fuel/summary`, `GET /fuel/stations` |
+| Maintenance | `POST /maintenance/report`, `GET/POST /maintenance`, `GET/PUT /maintenance/{id}`, `PATCH /maintenance/{id}/status`, `GET /maintenance/{summary, workshops}`, `GET/POST/PUT/DELETE /maintenance-schedules`, `GET/POST/PUT /spare-parts`, `PATCH /spare-parts/{id}/stock` |
+| Incidents | `GET/POST /incidents`, `GET/PUT /incidents/{id}`, `PATCH /incidents/{id}/status`, `PATCH /incidents/{id}/department`, `POST /incidents/{id}/attachments`, `GET /incidents/summary` |
 | Documents | `GET/POST /documents`, `GET/PUT/DELETE /documents/{id}`, `GET /documents/summary` |
 | Alerts & notifications | `GET /alerts`, `GET /alerts/summary`, `POST /alerts/{id}/acknowledge`, `GET /notifications`, `PATCH /notifications/{id}/read`, `POST /notifications/read-all` |
 | Reports | `GET /reports`, `GET /reports/{key}?from&to&date&export` |
-| Admin | `GET/POST /users`, `GET/PUT /users/{id}`, `PATCH /users/{id}/status`, `POST /users/{id}/reset-password`, `GET /audit-logs`, `POST /imports/{vehicles, drivers, fuel}`, `GET/PUT /settings`, `GET /search` |
+| Admin | `GET/POST /users`, `GET/PUT /users/{id}`, `PATCH /users/{id}/status`, `POST /users/{id}/reset-password`, `GET /permissions`, `GET/POST /roles`, `GET/PUT/DELETE /roles/{id}`, `GET/POST /departments`, `GET/PUT/DELETE /departments/{id}`, `PATCH /departments/{id}/status`, `GET /audit-logs`, `POST /imports/{vehicles, drivers, fuel}`, `GET/PUT /settings`, `GET /search` |
 
 ## Connecting the Spring Boot backend
 

@@ -1,7 +1,7 @@
 import { get, put, post, patch } from '../router'
 import { getDb, persist, resetDb } from '../db'
 import { badRequest, matchesText, paginate, inDateRange } from '../core'
-import { computeAlerts, recordAudit, diff } from '../mappers'
+import { computeAlerts, recordAudit, diff, userCan } from '../mappers'
 // ---------- Settings ----------
 get('/settings', () => getDb().settings, { permission: 'DASHBOARD_VIEW' })
 put(
@@ -133,55 +133,71 @@ get(
   { permission: 'AUDIT_VIEW' },
 )
 // ---------- Global search ----------
-get('/search', ({ query }) => {
+/** Global search only returns records the caller could open; a driver account sees just its own trips. */
+get('/search', ({ query, user }) => {
   const q = (query.q ?? '').trim().toLowerCase()
   if (q.length < 2) return []
   const d = getDb()
   const hits = []
   const has = (...parts) => parts.some((p) => p && p.toLowerCase().includes(q))
-  for (const v of d.vehicles)
-    if (has(v.plateNumber, v.fleetNumber, v.make, v.model))
-      hits.push({
-        type: 'VEHICLE',
-        id: v.id,
-        title: v.plateNumber,
-        subtitle: `${v.make} ${v.model} · ${v.fleetNumber}`,
-        link: `/vehicles/${v.id}`,
-      })
-  for (const x of d.drivers)
-    if (has(x.fullName, x.employeeNumber, x.phone, x.licenseNumber))
-      hits.push({ type: 'DRIVER', id: x.id, title: x.fullName, subtitle: `${x.employeeNumber} · ${x.phone}`, link: `/drivers/${x.id}` })
-  for (const t of d.trips)
-    if (has(t.tripNumber, t.customerName, t.destination))
-      hits.push({ type: 'TRIP', id: t.id, title: t.tripNumber, subtitle: `${t.startLocation} → ${t.destination}`, link: `/trips/${t.id}` })
-  for (const b of d.bookings)
-    if (has(b.bookingNumber, b.customerName, b.company))
-      hits.push({
-        type: 'BOOKING',
-        id: b.id,
-        title: b.bookingNumber,
-        subtitle: `${b.company ?? b.customerName} · ${b.pickupLocation}`,
-        link: `/bookings/${b.id}`,
-      })
-  for (const m of d.maintenance)
-    if (has(m.maintenanceNumber, m.complaint))
-      hits.push({ type: 'MAINTENANCE', id: m.id, title: m.maintenanceNumber, subtitle: m.complaint, link: `/maintenance/${m.id}` })
-  for (const i of d.incidents)
-    if (has(i.incidentNumber, i.description, i.location))
-      hits.push({ type: 'INCIDENT', id: i.id, title: i.incidentNumber, subtitle: i.description, link: `/incidents/${i.id}` })
+  const can = (permission) => userCan(user, permission)
+  if (can('VEHICLE_READ'))
+    for (const v of d.vehicles)
+      if (has(v.plateNumber, v.fleetNumber, v.make, v.model))
+        hits.push({
+          type: 'VEHICLE',
+          id: v.id,
+          title: v.plateNumber,
+          subtitle: `${v.make} ${v.model} · ${v.fleetNumber}`,
+          link: `/vehicles/${v.id}`,
+        })
+  if (can('DRIVER_READ'))
+    for (const x of d.drivers)
+      if (has(x.fullName, x.employeeNumber, x.phone, x.licenseNumber))
+        hits.push({ type: 'DRIVER', id: x.id, title: x.fullName, subtitle: `${x.employeeNumber} · ${x.phone}`, link: `/drivers/${x.id}` })
+  const tripScope = can('TRIP_READ') ? null : can('TRIP_START') ? (user.driverId ?? -1) : undefined
+  if (tripScope !== undefined)
+    for (const t of d.trips)
+      if ((tripScope == null || t.driverId === tripScope) && has(t.tripNumber, t.customerName, t.destination))
+        hits.push({
+          type: 'TRIP',
+          id: t.id,
+          title: t.tripNumber,
+          subtitle: `${t.startLocation} → ${t.destination}`,
+          link: `/trips/${t.id}`,
+        })
+  if (can('BOOKING_READ'))
+    for (const b of d.bookings)
+      if (has(b.bookingNumber, b.customerName, b.company))
+        hits.push({
+          type: 'BOOKING',
+          id: b.id,
+          title: b.bookingNumber,
+          subtitle: `${b.company ?? b.customerName} · ${b.pickupLocation}`,
+          link: `/bookings/${b.id}`,
+        })
+  if (can('MAINTENANCE_READ'))
+    for (const m of d.maintenance)
+      if (has(m.maintenanceNumber, m.complaint))
+        hits.push({ type: 'MAINTENANCE', id: m.id, title: m.maintenanceNumber, subtitle: m.complaint, link: `/maintenance/${m.id}` })
+  if (can('INCIDENT_READ'))
+    for (const i of d.incidents)
+      if (has(i.incidentNumber, i.description, i.location))
+        hits.push({ type: 'INCIDENT', id: i.id, title: i.incidentNumber, subtitle: i.description, link: `/incidents/${i.id}` })
   const seenCustomers = new Set()
-  for (const b of d.bookings) {
-    const c = b.company ?? b.customerName
-    if (!seenCustomers.has(c) && has(c)) {
-      seenCustomers.add(c)
-      hits.push({
-        type: 'CUSTOMER',
-        id: b.id,
-        title: c,
-        subtitle: 'Customer · view bookings',
-        link: `/bookings?q=${encodeURIComponent(c)}`,
-      })
+  if (can('BOOKING_READ'))
+    for (const b of d.bookings) {
+      const c = b.company ?? b.customerName
+      if (!seenCustomers.has(c) && has(c)) {
+        seenCustomers.add(c)
+        hits.push({
+          type: 'CUSTOMER',
+          id: b.id,
+          title: c,
+          subtitle: 'Customer · view bookings',
+          link: `/bookings?q=${encodeURIComponent(c)}`,
+        })
+      }
     }
-  }
   return hits.slice(0, 25)
 })

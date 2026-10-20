@@ -15,12 +15,22 @@ import Inventory2Icon from '@mui/icons-material/Inventory2'
 import BarChartIcon from '@mui/icons-material/BarChart'
 import SpeedIcon from '@mui/icons-material/Speed'
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts'
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
+import CorporateFareIcon from '@mui/icons-material/CorporateFare'
 import HistoryIcon from '@mui/icons-material/History'
 import SettingsIcon from '@mui/icons-material/Settings'
 import UploadIcon from '@mui/icons-material/Upload'
+import TodayIcon from '@mui/icons-material/Today'
+
+/** Any of these opens the driver workspace ("My day"); the Driver role holds exactly these three. */
+export const DRIVER_WORKSPACE_PERMISSIONS = ['TRIP_START', 'FUEL_SUBMIT', 'MAINTENANCE_REPORT']
 
 /** Sidebar navigation. Items are hidden when the user lacks the permission. */
 export const NAV_GROUPS = [
+  {
+    label: 'My work',
+    items: [{ to: '/my-day', label: 'My day', icon: TodayIcon, permission: DRIVER_WORKSPACE_PERMISSIONS }],
+  },
   {
     label: 'Overview',
     items: [
@@ -66,6 +76,8 @@ export const NAV_GROUPS = [
     label: 'Administration',
     items: [
       { to: '/admin/users', label: 'Users', icon: ManageAccountsIcon, permission: 'USER_MANAGE' },
+      { to: '/admin/roles', label: 'Roles', icon: AdminPanelSettingsIcon, permission: 'ROLE_MANAGE' },
+      { to: '/admin/departments', label: 'Departments', icon: CorporateFareIcon, permission: 'DEPARTMENT_MANAGE' },
       { to: '/admin/audit', label: 'Audit log', icon: HistoryIcon, permission: 'AUDIT_VIEW' },
       { to: '/admin/imports', label: 'Imports', icon: UploadIcon, permission: ['VEHICLE_CREATE', 'DRIVER_MANAGE', 'FUEL_MANAGE'] },
       { to: '/settings', label: 'Settings', icon: SettingsIcon, permission: 'DASHBOARD_VIEW' },

@@ -10,6 +10,7 @@ import { useSearchState } from '@/hooks/useSearchState'
 import { usePagedQuery, useVehicleOptions } from '@/features/common/hooks'
 import { ListPage } from '@/features/common/ListPage'
 import { useOptions } from '@/app/ReferenceProvider'
+import { useDepartments } from '@/features/admin/api'
 import { Can } from '@/app/AuthProvider'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
@@ -27,6 +28,7 @@ export default function IncidentsPage() {
   const types = useOptions('incidentType')
   const severities = useOptions('severity')
   const vehicles = useVehicleOptions()
+  const departments = useDepartments()
   const summary = useQuery({ queryKey: ['incidents', 'summary'], queryFn: () => http.get('/incidents/summary') })
   const params = useMemo(
     () => ({
@@ -35,6 +37,7 @@ export default function IncidentsPage() {
       severity: state.severity,
       type: state.type,
       vehicleId: state.vehicleId,
+      departmentId: state.departmentId,
       from: state.from,
       to: state.to,
       page: state.page,
@@ -64,6 +67,7 @@ export default function IncidentsPage() {
       render: (i) => <LinkText to={`/vehicles/${i.vehicleId}?tab=incidents`}>{i.vehiclePlate}</LinkText>,
     },
     { key: 'driverName', header: 'Driver', hideBelow: 'lg' },
+    { key: 'departmentName', header: 'Department', sortKey: 'departmentName', hideBelow: 'lg' },
     {
       key: 'type',
       header: 'Type',
@@ -186,6 +190,19 @@ export default function IncidentsPage() {
               {vehicles.options.map((v) => (
                 <option key={v.value} value={v.value}>
                   {v.label}
+                </option>
+              ))}
+            </Select>
+            <Select
+              value={state.departmentId ?? ''}
+              onChange={(e) => update({ departmentId: e.target.value })}
+              compact
+              placeholder="Any department"
+              aria-label="Department"
+            >
+              {departments.departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
                 </option>
               ))}
             </Select>

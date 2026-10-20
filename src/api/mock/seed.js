@@ -11,6 +11,7 @@ import {
   subMonths,
 } from 'date-fns'
 import { Rng } from './rng'
+import { DEFAULT_DEPARTMENTS, DEFAULT_ROLES } from './core'
 import {
   CATEGORIES,
   CITY_LOCATIONS,
@@ -33,24 +34,25 @@ import {
   UPCOUNTRY_LOCATIONS,
   WORKSHOPS,
 } from './data'
-export const SEED_VERSION = 7
+export const SEED_VERSION = 9
 export const DEMO_PASSWORD = 'Limoz#2026'
 const HISTORY_DAYS = 90
 const FUTURE_DAYS = 10
 const iso = (d) => d.toISOString()
 const day = (d) => format(d, 'yyyy-MM-dd')
+/** `role` and `department` are codes resolved to the seeded rows; the login page lists these accounts. */
 export const DEMO_USERS = [
-  { firstName: 'Regis', lastName: 'Ngabo', email: 'admin@limoz.rw', role: 'SUPER_ADMIN' },
-  { firstName: 'Eric', lastName: 'Mugisha', email: 'it@limoz.rw', role: 'IT_ADMIN' },
-  { firstName: 'Diane', lastName: 'Ingabire', email: 'management@limoz.rw', role: 'MANAGEMENT' },
-  { firstName: 'Patrick', lastName: 'Nsengimana', email: 'fleet@limoz.rw', role: 'FLEET_MANAGER' },
-  { firstName: 'Olive', lastName: 'Umutoni', email: 'officer@limoz.rw', role: 'FLEET_OFFICER' },
-  { firstName: 'Samuel', lastName: 'Rukundo', email: 'dispatch@limoz.rw', role: 'DISPATCHER' },
-  { firstName: 'Claude', lastName: 'Hakizimana', email: 'workshop@limoz.rw', role: 'WORKSHOP_MANAGER' },
-  { firstName: 'Theogene', lastName: 'Munyaneza', email: 'technician@limoz.rw', role: 'TECHNICIAN' },
-  { firstName: 'Josiane', lastName: 'Mukeshimana', email: 'finance@limoz.rw', role: 'FINANCE' },
-  { firstName: 'Jean Bosco', lastName: 'Habimana', email: 'driver@limoz.rw', role: 'DRIVER' },
-  { firstName: 'Grace', lastName: 'Uwimana', email: 'viewer@limoz.rw', role: 'VIEWER' },
+  { firstName: 'Regis', lastName: 'Ngabo', email: 'admin@limoz.rw', role: 'SUPER_ADMIN', department: 'IT' },
+  { firstName: 'Eric', lastName: 'Mugisha', email: 'it@limoz.rw', role: 'IT_ADMIN', department: 'IT' },
+  { firstName: 'Diane', lastName: 'Ingabire', email: 'management@limoz.rw', role: 'MANAGEMENT', department: 'MGMT' },
+  { firstName: 'Patrick', lastName: 'Nsengimana', email: 'fleet@limoz.rw', role: 'FLEET_MANAGER', department: 'OPS' },
+  { firstName: 'Olive', lastName: 'Umutoni', email: 'officer@limoz.rw', role: 'FLEET_OFFICER', department: 'OPS' },
+  { firstName: 'Samuel', lastName: 'Rukundo', email: 'dispatch@limoz.rw', role: 'DISPATCHER', department: 'OPS' },
+  { firstName: 'Claude', lastName: 'Hakizimana', email: 'workshop@limoz.rw', role: 'WORKSHOP_MANAGER', department: 'WORKSHOP' },
+  { firstName: 'Theogene', lastName: 'Munyaneza', email: 'technician@limoz.rw', role: 'TECHNICIAN', department: 'WORKSHOP' },
+  { firstName: 'Josiane', lastName: 'Mukeshimana', email: 'finance@limoz.rw', role: 'FINANCE', department: 'FINANCE' },
+  { firstName: 'Jean Bosco', lastName: 'Habimana', email: 'driver@limoz.rw', role: 'DRIVER', department: 'VIP' },
+  { firstName: 'Grace', lastName: 'Uwimana', email: 'viewer@limoz.rw', role: 'VIEWER', department: 'CORP' },
 ]
 export const DEFAULT_SETTINGS = {
   nightDrivingStart: '22:00',
@@ -74,10 +76,34 @@ export function buildSeed(now = new Date()) {
   const ts = (d) => ({ createdAt: iso(d), updatedAt: iso(d) })
   const phone = () => `+25078${rng.int(1_000_000, 9_999_999)}`
   const personName = () => `${rng.pick(FIRST_NAMES)} ${rng.pick(LAST_NAMES)}`
+  // ---------- roles & departments ----------
+  const roles = DEFAULT_ROLES.map((r) => ({
+    id: nextId('role'),
+    code: r.code,
+    name: r.name,
+    description: r.description,
+    tone: r.tone,
+    permissions: [...r.permissions],
+    system: r.system,
+    ...ts(subMonths(now, 10)),
+  }))
+  const roleByCode = (code) => roles.find((r) => r.code === code)
+  const departments = DEFAULT_DEPARTMENTS.map((d) => ({
+    id: nextId('department'),
+    code: d.code,
+    name: d.name,
+    description: d.description,
+    active: true,
+    ...ts(subMonths(now, 10)),
+  }))
+  const departmentByCode = (code) => departments.find((d) => d.code === code)
   // ---------- users ----------
-  const users = DEMO_USERS.map((u) => ({
+  const users = DEMO_USERS.map(({ role, department, ...u }) => ({
     id: nextId('user'),
     ...u,
+    roleId: roleByCode(role).id,
+    departmentId: departmentByCode(department).id,
+    driverId: null,
     phone: phone(),
     password: DEMO_PASSWORD,
     active: true,
@@ -89,14 +115,16 @@ export function buildSeed(now = new Date()) {
     firstName: 'Fabrice',
     lastName: 'Ndayisaba',
     email: 'fabrice.n@limoz.rw',
-    role: 'FLEET_OFFICER',
+    roleId: roleByCode('FLEET_OFFICER').id,
+    departmentId: departmentByCode('OPS').id,
+    driverId: null,
     phone: phone(),
     password: DEMO_PASSWORD,
     active: false,
     lastLoginAt: iso(subMonths(now, 2)),
     ...ts(subMonths(now, 7)),
   })
-  const userByRole = (role) => users.find((u) => u.role === role)
+  const userByRole = (code) => users.find((u) => u.roleId === roleByCode(code).id)
   // ---------- categories ----------
   const categories = CATEGORIES.map((c) => ({
     id: nextId('category'),
@@ -186,6 +214,9 @@ export function buildSeed(now = new Date()) {
   drivers[18].status = 'SUSPENDED'
   drivers[19].status = 'INACTIVE'
   drivers[19].archived = false
+  // The demo driver account acts for the first driver profile in the driver workspace.
+  const demoDriver = drivers[0]
+  users.find((u) => u.email === 'driver@limoz.rw').driverId = demoDriver.id
   // ---------- assignments (history + current) ----------
   const assignments = []
   const fleetManager = userByRole('FLEET_MANAGER')
@@ -193,7 +224,8 @@ export function buildSeed(now = new Date()) {
   const currentDriverOf = new Map()
   const activeDrivers = drivers.filter((d) => d.status === 'AVAILABLE')
   const assignableVehicles = vehicles.filter((v) => !inactive.has(v.id) && !outOfService.has(v.id))
-  const shuffledDrivers = rng.shuffle(activeDrivers)
+  // The demo driver always holds the first vehicle so the driver workspace has something to show.
+  const shuffledDrivers = [demoDriver, ...rng.shuffle(activeDrivers.filter((d) => d.id !== demoDriver.id))]
   assignableVehicles.forEach((v, idx) => {
     // historical assignments
     let cursor = subDays(today, HISTORY_DAYS + rng.int(30, 120))
@@ -222,7 +254,7 @@ export function buildSeed(now = new Date()) {
       cursor = addDays(end, rng.int(1, 6))
     }
     // current assignment for ~80% of the fleet
-    if (idx < shuffledDrivers.length && rng.chance(0.82)) {
+    if (idx < shuffledDrivers.length && (idx === 0 || rng.chance(0.82))) {
       const d = shuffledDrivers[idx]
       const start = subDays(today, rng.int(3, 60))
       assignments.push({
@@ -283,13 +315,15 @@ export function buildSeed(now = new Date()) {
   const pending = []
   const lastFuelOdo = new Map()
   const busyToday = new Map()
+  const demoVehicle = assignableVehicles[0]
   for (let offset = -HISTORY_DAYS; offset <= FUTURE_DAYS; offset++) {
     const d = addDays(today, offset)
     const count = tripsPerDay(d)
     const dayVehicles = rng.shuffle(tripVehicles.filter((v) => offset > 0 || !inWorkshop.has(v.id) || offset < -3))
     for (let i = 0; i < count && i < dayVehicles.length; i++) {
       const v = dayVehicles[i]
-      const driverId = currentDriverOf.get(v.id) ?? rng.pick(activeDrivers).id
+      // Pool trips never borrow the demo driver, so the driver workspace only shows trips on their own vehicle.
+      const driverId = currentDriverOf.get(v.id) ?? rng.pick(activeDrivers.filter((x) => x.id !== demoDriver.id)).id
       const upcountry = rng.chance(0.22)
       const from = rng.pick(CITY_LOCATIONS)
       const to = upcountry ? rng.pick(UPCOUNTRY_LOCATIONS) : rng.pick(CITY_LOCATIONS.filter((l) => l !== from))
@@ -304,6 +338,8 @@ export function buildSeed(now = new Date()) {
       else if (offset === 0) status = rng.chance(0.6) ? 'DISPATCHED' : 'PLANNED'
       else status = offset <= 2 && rng.chance(0.5) ? 'DISPATCHED' : 'PLANNED'
       if (status === 'IN_PROGRESS' && busyToday.has(v.id)) status = 'PLANNED'
+      // Keep the demo driver's vehicle off the road right now so "Start trip" works in the driver workspace.
+      if (status === 'IN_PROGRESS' && v.id === demoVehicle.id) status = 'DISPATCHED'
       if (status === 'IN_PROGRESS') busyToday.set(v.id, start)
       pending.push({
         vehicle: v,
@@ -320,6 +356,24 @@ export function buildSeed(now = new Date()) {
         upcountry,
       })
     }
+  }
+  // A dispatched trip for the demo driver later today, ready to be started from the driver workspace.
+  {
+    const demoStart = addMinutes(today, Math.ceil((now.getHours() * 60 + now.getMinutes() + 45) / 15) * 15)
+    pending.push({
+      vehicle: demoVehicle,
+      driverId: demoDriver.id,
+      start: demoStart,
+      distance: 14,
+      durationMin: 40,
+      from: 'Kigali International Airport',
+      to: 'Kigali Marriott Hotel',
+      purpose: 'Airport transfer',
+      passengers: 2,
+      customer: COMPANIES[0],
+      status: 'DISPATCHED',
+      upcountry: false,
+    })
   }
   pending.sort((a, b) => a.start.getTime() - b.start.getTime())
   for (const p of pending) if (p.status === 'COMPLETED') plannedKm.set(p.vehicle.id, (plannedKm.get(p.vehicle.id) ?? 0) + p.distance)
@@ -452,6 +506,231 @@ export function buildSeed(now = new Date()) {
     }
   }
   movements.push(...movementMap.values())
+  // ---------- fuel allocations ----------
+  // The fleet officer allocates fuel to a driver; the driver fills up, submits the receipt and the
+  // officer verifies it into a fuel transaction. Recent fills become verified allocations, and a few
+  // are left open so the driver workspace and the officer's queue have something to act on.
+  const fuelRequests = []
+  const officer = userByRole('FLEET_OFFICER')
+  const allocNumber = (id, at) => `FA-${format(at, 'yyMM')}-${String(id).padStart(4, '0')}`
+  const proofImage = (station, litres, amount, at) => {
+    const lines = [
+      [station, 110, 22, 'middle'],
+      ['TAX INVOICE', 150, 14, 'middle'],
+      [`Date   ${format(at, 'dd/MM/yyyy HH:mm')}`, 230, 16, 'start'],
+      [`Pump   03`, 262, 16, 'start'],
+      [`Litres ${litres.toFixed(2)}`, 294, 16, 'start'],
+      [`Price  ${Math.round(amount / litres).toLocaleString('en-US')} RWF/L`, 326, 16, 'start'],
+      [`TOTAL  ${Math.round(amount).toLocaleString('en-US')} RWF`, 390, 20, 'start'],
+      ['Thank you for fuelling with us', 560, 13, 'middle'],
+    ]
+    const text = lines
+      .map(
+        ([t, y, size, anchor]) =>
+          `<text x="${anchor === 'middle' ? 240 : 80}" y="${y}" font-family="monospace" font-size="${size}" text-anchor="${anchor}" fill="#222">${t}</text>`,
+      )
+      .join('')
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="640" viewBox="0 0 480 640"><rect width="480" height="640" fill="#efefe8"/><rect x="40" y="40" width="400" height="560" fill="#fff" stroke="#d6d6cc"/><line x1="70" y1="180" x2="410" y2="180" stroke="#bbb" stroke-dasharray="4 4"/><line x1="70" y1="350" x2="410" y2="350" stroke="#bbb" stroke-dasharray="4 4"/>${text}</svg>`
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+  }
+  const proofFor = (station, litres, amount, at) => ({
+    fileName: `receipt-${format(at, 'yyyyMMdd-HHmm')}.svg`,
+    contentType: 'image/svg+xml',
+    sizeBytes: 1800 + rng.int(0, 400),
+    dataUrl: proofImage(station, litres, amount, at),
+  })
+  const linkedUserId = (driverId) => users.find((u) => u.driverId === driverId)?.id ?? null
+  const verifiedFromFill = (f) => {
+    const at = new Date(f.transactedAt)
+    const created = subDays(at, 1)
+    const id = nextId('fuelRequest')
+    const litresAllocated = Math.ceil(f.litres / 5) * 5
+    const amount = f.litres * f.pricePerLitre
+    const submittedAt = addMinutes(at, rng.int(5, 40))
+    const reviewedAt = addHours(submittedAt, rng.int(1, 20))
+    f.allocationId = id
+    fuelRequests.push({
+      id,
+      requestNumber: allocNumber(id, created),
+      vehicleId: f.vehicleId,
+      driverId: f.driverId,
+      litresAllocated,
+      station: f.station,
+      dueAt: iso(addDays(created, 2)),
+      purpose: rng.pick(['Weekly top-up', 'Upcountry trip', 'Airport transfers', 'Client contract', null]),
+      notes: null,
+      status: 'VERIFIED',
+      createdById: officer.id,
+      submission: {
+        litres: f.litres,
+        pricePerLitre: f.pricePerLitre,
+        odometerKm: f.odometerKm,
+        receiptNumber: f.receiptNumber,
+        station: f.station,
+        transactedAt: f.transactedAt,
+        proof: proofFor(f.station, f.litres, amount, at),
+        notes: null,
+        submittedAt: iso(submittedAt),
+        submittedById: linkedUserId(f.driverId),
+      },
+      reviewNote: null,
+      reviewedById: officer.id,
+      reviewedAt: iso(reviewedAt),
+      fuelTransactionId: f.id,
+      history: [
+        { at: iso(created), byId: officer.id, action: 'Allocated', note: `${litresAllocated} L at ${f.station}` },
+        { at: iso(submittedAt), byId: linkedUserId(f.driverId), action: 'Receipt submitted', note: `${f.litres} L` },
+        { at: iso(reviewedAt), byId: officer.id, action: 'Verified', note: null },
+      ],
+      createdAt: iso(created),
+      updatedAt: iso(reviewedAt),
+    })
+  }
+  const recentFills = fuel
+    .filter((f) => f.driverId && currentDriverOf.get(f.vehicleId) === f.driverId && new Date(f.transactedAt) > subDays(now, 35))
+    .sort((a, b) => b.transactedAt.localeCompare(a.transactedAt))
+  const demoFill = recentFills.find((f) => f.vehicleId === demoVehicle.id)
+  for (const f of [demoFill, ...recentFills.filter((f) => f !== demoFill).slice(0, 9)].filter(Boolean)) verifiedFromFill(f)
+  const openAllocation = (vehicle, driverId, { litres, station, createdDaysAgo, dueInDays, purpose, status = 'PENDING', extra = {} }) => {
+    const created = subDays(now, createdDaysAgo)
+    const id = nextId('fuelRequest')
+    const row = {
+      id,
+      requestNumber: allocNumber(id, created),
+      vehicleId: vehicle.id,
+      driverId,
+      litresAllocated: litres,
+      station,
+      dueAt: dueInDays == null ? null : iso(setHours(addDays(today, dueInDays), 18)),
+      purpose,
+      notes: null,
+      status,
+      createdById: officer.id,
+      submission: null,
+      reviewNote: null,
+      reviewedById: null,
+      reviewedAt: null,
+      fuelTransactionId: null,
+      history: [{ at: iso(created), byId: officer.id, action: 'Allocated', note: `${litres} L${station ? ` at ${station}` : ''}` }],
+      createdAt: iso(created),
+      updatedAt: iso(created),
+      ...extra,
+    }
+    fuelRequests.push(row)
+    return row
+  }
+  openAllocation(demoVehicle, demoDriver.id, {
+    litres: 45,
+    station: STATIONS[0],
+    createdDaysAgo: 1,
+    dueInDays: 1,
+    purpose: 'Airport transfers this week',
+  })
+  const otherAssigned = assignableVehicles.filter((v) => v.id !== demoVehicle.id && currentDriverOf.has(v.id)).slice(0, 5)
+  if (otherAssigned[0])
+    openAllocation(otherAssigned[0], currentDriverOf.get(otherAssigned[0].id), {
+      litres: 60,
+      station: STATIONS[3],
+      createdDaysAgo: 0,
+      dueInDays: 2,
+      purpose: 'Musanze safari transfer',
+    })
+  if (otherAssigned[1])
+    openAllocation(otherAssigned[1], currentDriverOf.get(otherAssigned[1].id), {
+      litres: 40,
+      station: null,
+      createdDaysAgo: 4,
+      dueInDays: -1,
+      purpose: 'Weekly top-up',
+    })
+  if (otherAssigned[2]) {
+    const v = otherAssigned[2]
+    const at = addHours(now, -3)
+    const litres = 38.4
+    const price = v.fuelType === 'PETROL' ? 1790 : 1720
+    openAllocation(v, currentDriverOf.get(v.id), {
+      litres: 40,
+      station: STATIONS[1],
+      createdDaysAgo: 2,
+      dueInDays: 0,
+      purpose: 'Conference shuttle',
+      status: 'SUBMITTED',
+      extra: {
+        submission: {
+          litres,
+          pricePerLitre: price,
+          odometerKm: v.odometerKm,
+          receiptNumber: `RS${format(at, 'yyMMdd')}-4471`,
+          station: STATIONS[1],
+          transactedAt: iso(at),
+          proof: proofFor(STATIONS[1], litres, litres * price, at),
+          notes: null,
+          submittedAt: iso(addMinutes(at, 12)),
+          submittedById: linkedUserId(currentDriverOf.get(v.id)),
+        },
+        updatedAt: iso(addMinutes(at, 12)),
+      },
+    })
+    fuelRequests.at(-1).history.push({ at: iso(addMinutes(at, 12)), byId: null, action: 'Receipt submitted', note: `${litres} L` })
+  }
+  if (otherAssigned[3]) {
+    const v = otherAssigned[3]
+    const at = subDays(now, 1)
+    const litres = 52
+    const price = v.fuelType === 'PETROL' ? 1790 : 1720
+    const returnedAt = addHours(at, 5)
+    openAllocation(v, currentDriverOf.get(v.id), {
+      litres: 50,
+      station: STATIONS[4],
+      createdDaysAgo: 3,
+      dueInDays: 1,
+      purpose: 'Cargo run to Rusizi',
+      status: 'RETURNED',
+      extra: {
+        submission: {
+          litres,
+          pricePerLitre: price,
+          odometerKm: v.odometerKm,
+          receiptNumber: `RS${format(at, 'yyMMdd')}-0192`,
+          station: STATIONS[4],
+          transactedAt: iso(at),
+          proof: proofFor(STATIONS[4], litres, litres * price, at),
+          notes: null,
+          submittedAt: iso(addMinutes(at, 20)),
+          submittedById: linkedUserId(currentDriverOf.get(v.id)),
+        },
+        reviewNote: 'The receipt photo is cut off at the total. Please upload a full photo of the receipt.',
+        reviewedById: officer.id,
+        reviewedAt: iso(returnedAt),
+        updatedAt: iso(returnedAt),
+      },
+    })
+    fuelRequests
+      .at(-1)
+      .history.push(
+        { at: iso(addMinutes(at, 20)), byId: null, action: 'Receipt submitted', note: `${litres} L` },
+        { at: iso(returnedAt), byId: officer.id, action: 'Returned to driver', note: 'The receipt photo is cut off at the total.' },
+      )
+  }
+  if (otherAssigned[4]) {
+    const v = otherAssigned[4]
+    const cancelledAt = subDays(now, 6)
+    openAllocation(v, currentDriverOf.get(v.id), {
+      litres: 30,
+      station: STATIONS[2],
+      createdDaysAgo: 8,
+      dueInDays: -5,
+      purpose: 'Day hire',
+      status: 'CANCELLED',
+      extra: {
+        reviewNote: 'Hire cancelled by the client.',
+        reviewedById: officer.id,
+        reviewedAt: iso(cancelledAt),
+        updatedAt: iso(cancelledAt),
+      },
+    })
+    fuelRequests.at(-1).history.push({ at: iso(cancelledAt), byId: officer.id, action: 'Cancelled', note: 'Hire cancelled by the client.' })
+  }
   // Stand-alone bookings (requested/confirmed/cancelled) not yet tied to trips
   for (let i = 0; i < 16; i++) {
     const inFuture = i < 11
@@ -645,11 +924,25 @@ export function buildSeed(now = new Date()) {
       })
     if (plan.status === 'CLOSED')
       history.push({ at: iso(addDays(at, rng.int(9, 14))), byName: 'Diane Ingabire', action: 'Closed', note: null })
+    // Incidents are owned by a department; everyone in it is notified when it lands there.
+    const departmentCode = { BREAKDOWN: 'WORKSHOP', FUEL_ANOMALY: 'FINANCE', CUSTOMER_COMPLAINT: 'MGMT' }[type] ?? 'OPS'
+    let departmentId = departmentByCode(departmentCode).id
+    if (plan.daysAgo === 9) {
+      // A breakdown first logged with operations and handed to the workshop, with the mandatory note.
+      departmentId = departmentByCode('WORKSHOP').id
+      history.splice(1, 0, {
+        at: iso(addHours(at, 2)),
+        byName: `${dispatcher.firstName} ${dispatcher.lastName}`,
+        action: 'Reassigned to Workshop',
+        note: 'Fleet Operations → Workshop. Vehicle recovered to depot; needs diagnosis before the insurer is contacted.',
+      })
+    }
     incidents.push({
       id,
       incidentNumber: `INC-${format(at, 'yyMM')}-${String(id).padStart(3, '0')}`,
       vehicleId: v.id,
       driverId: currentDriverOf.get(v.id) ?? rng.pick(drivers).id,
+      departmentId,
       occurredAt: iso(at),
       location: rng.pick(CITY_LOCATIONS.concat(UPCOUNTRY_LOCATIONS)),
       type,
@@ -970,6 +1263,8 @@ export function buildSeed(now = new Date()) {
     version: SEED_VERSION,
     seededOn: day(today),
     settings: { ...DEFAULT_SETTINGS },
+    roles,
+    departments,
     users,
     categories,
     vehicles,
@@ -978,6 +1273,7 @@ export function buildSeed(now = new Date()) {
     trips,
     bookings,
     fuel,
+    fuelRequests,
     maintenance,
     schedules,
     parts,

@@ -12,16 +12,18 @@ import LockIcon from '@mui/icons-material/Lock'
 import ReplayIcon from '@mui/icons-material/Replay'
 import AttachFileIcon from '@mui/icons-material/AttachFile'
 import UploadIcon from '@mui/icons-material/Upload'
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
 import { http } from '@/api/client'
 import { useAuth } from '@/app/AuthProvider'
 import { useApiMutation } from '@/features/common/hooks'
+import { useDepartments } from '@/features/admin/api'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { DescriptionList, Timeline } from '@/components/ui/Display'
 import { StatusBadge } from '@/components/ui/Badge'
 import { Dialog } from '@/components/ui/Dialog'
-import { Field, Textarea } from '@/components/ui/Field'
+import { Field, Select, Textarea } from '@/components/ui/Field'
 import { ErrorState, NotFoundInline, Skeleton, InlineAlert, LinkText } from '@/components/ui/Feedback'
 import { formatBytes, formatCurrency, formatDateTime, formatSmartDateTime } from '@/utils/format'
 
@@ -81,6 +83,9 @@ export default function IncidentDetailPage() {
       )
     if (i.status !== 'CLOSED')
       actions.push(
+        <Button key="handover" icon={SwapHorizIcon} onClick={() => setDialog('DEPARTMENT')}>
+          Hand over
+        </Button>,
         <Button key="edit" icon={EditIcon} to={`/incidents/${i.id}/edit`}>
           Edit
         </Button>,
@@ -100,7 +105,9 @@ export default function IncidentDetailPage() {
             ? 'warning'
             : h.action.includes('out of service')
               ? 'danger'
-              : 'info',
+              : h.action.startsWith('Reassigned')
+                ? 'accent'
+                : 'info',
     }))
     .reverse()
 
@@ -136,6 +143,12 @@ export default function IncidentDetailPage() {
                   {
                     label: 'Driver',
                     value: i.driverId ? <LinkText to={`/drivers/${i.driverId}`}>{i.driverName}</LinkText> : null,
+                  },
+                  {
+                    label: 'Assigned department',
+                    value: i.departmentName ? (
+                      <LinkText to={`/incidents?departmentId=${i.departmentId}`}>{i.departmentName}</LinkText>
+                    ) : null,
                   },
                   { label: 'Type', value: <StatusBadge kind="incidentType" value={i.type} size="sm" dot={false} /> },
                   { label: 'Occurred', value: formatDateTime(i.occurredAt) },
@@ -246,7 +259,11 @@ export default function IncidentDetailPage() {
           </CardBody>
         </Card>
       </Box>
-      <StatusDialog incident={i} status={dialog} onClose={() => setDialog(null)} />
+      {dialog === 'DEPARTMENT' ? (
+        <HandoverDialog incident={i} onClose={() => setDialog(null)} />
+      ) : (
+        <StatusDialog incident={i} status={dialog} onClose={() => setDialog(null)} />
+      )}
     </Stack>
   )
 }
@@ -310,6 +327,78 @@ function StatusDialog({ incident, status, onClose }) {
           <Field label="Note for the history">
             <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
           </Field>
+        ) : null}
+      </Stack>
+    </Dialog>
+  )
+}
+
+/** Moves the incident to another department. The note is mandatory: the receiving team reads it first. */
+function HandoverDialog({ incident, onClose }) {
+  const departments = useDepartments({ active: true })
+  const [departmentId, setDepartmentId] = useState('')
+  const [note, setNote] = useState('')
+  const [error, setError] = useState(null)
+  const move = useApiMutation({
+    mutationFn: (body) => http.patch(`/incidents/${incident.id}/department`, body),
+    invalidate: [['incidents'], ['departments'], ['notifications']],
+    success: (i) => `${i.incidentNumber} handed over to ${i.departmentName}`,
+    onSuccess: onClose,
+  })
+  const target = departments.departments.find((d) => String(d.id) === String(departmentId))
+  const ready = Boolean(departmentId) && note.trim().length >= 10
+  const submit = async () => {
+    setError(null)
+    try {
+      await move.mutateAsync({ departmentId: Number(departmentId), note: note.trim() })
+    } catch (e) {
+      setError(e)
+    }
+  }
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title="Hand over to another department"
+      description={`Currently with ${incident.departmentName ?? 'no department'}.`}
+      size="sm"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Back
+          </Button>
+          <Button variant="primary" onClick={submit} loading={move.isPending} disabled={!ready}>
+            Hand over
+          </Button>
+        </>
+      }
+    >
+      <Stack spacing={2}>
+        {error ? <InlineAlert tone="danger">{error.message}</InlineAlert> : null}
+        <Field label="New department" required>
+          <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} placeholder="Choose department" autoFocus>
+            {departments.departments
+              .filter((d) => d.id !== incident.departmentId)
+              .map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+          </Select>
+        </Field>
+        <Field
+          label="Handover note"
+          required
+          hint="Why it is moving and what the receiving team should do first. At least 10 characters; kept in the history and audit log."
+        >
+          <Textarea rows={4} value={note} onChange={(e) => setNote(e.target.value)} />
+        </Field>
+        {target ? (
+          <InlineAlert tone="info">
+            {target.memberCount === 0
+              ? `${target.name} has no active members yet; nobody will be notified until someone is added.`
+              : `${target.memberCount} ${target.memberCount === 1 ? 'person' : 'people'} in ${target.name} will be notified.`}
+          </InlineAlert>
         ) : null}
       </Stack>
     </Dialog>

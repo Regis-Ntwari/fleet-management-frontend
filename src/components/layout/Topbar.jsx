@@ -128,7 +128,9 @@ export function Topbar({ onOpenMobileNav, onOpenSearch }) {
                   <Typography noWrap sx={{ maxWidth: 140, fontSize: 13, fontWeight: 500, lineHeight: 1.2 }}>
                     {user?.name}
                   </Typography>
-                  <Typography sx={{ fontSize: 11, lineHeight: 1.2, color: 'text.muted' }}>{roleMeta?.label ?? user?.role}</Typography>
+                  <Typography sx={{ fontSize: 11, lineHeight: 1.2, color: 'text.muted' }}>
+                    {roleMeta?.label ?? user?.roleName ?? user?.role}
+                  </Typography>
                 </Box>
               </ButtonBase>
             }

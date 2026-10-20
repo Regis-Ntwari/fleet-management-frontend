@@ -15,7 +15,7 @@ import { Can } from '@/app/AuthProvider'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Field'
-import { StatusBadge } from '@/components/ui/Badge'
+import { Dash, StatusBadge } from '@/components/ui/Badge'
 import { SegmentedControl } from '@/components/ui/Tabs'
 import { DateRangePicker } from '@/components/ui/DateRange'
 import { Stat, StatGrid } from '@/components/ui/Stat'
@@ -83,7 +83,7 @@ export default function MaintenancePage() {
         </Box>
       ),
     },
-    { key: 'workshop', header: 'Workshop', hideBelow: 'xl' },
+    { key: 'workshop', header: 'Workshop', render: (m) => m.workshop ?? <Dash />, hideBelow: 'xl' },
     {
       key: 'expectedCompletionAt',
       header: 'Expected',

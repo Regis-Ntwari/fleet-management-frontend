@@ -93,6 +93,13 @@ export const REFERENCE = {
     s('UNKNOWN', 'Unknown', 'neutral'),
   ],
   assignmentStatuses: [s('ACTIVE', 'Active', 'success'), s('ENDED', 'Ended', 'neutral'), s('CANCELLED', 'Cancelled', 'danger')],
+  fuelRequestStatuses: [
+    s('PENDING', 'Awaiting fill-up', 'warning'),
+    s('SUBMITTED', 'Receipt submitted', 'info'),
+    s('RETURNED', 'Returned to driver', 'danger'),
+    s('VERIFIED', 'Verified', 'success'),
+    s('CANCELLED', 'Cancelled', 'neutral'),
+  ],
   fuelTypes: [
     s('DIESEL', 'Diesel', 'neutral'),
     s('PETROL', 'Petrol', 'neutral'),
@@ -100,19 +107,6 @@ export const REFERENCE = {
     s('ELECTRIC', 'Electric', 'neutral'),
   ],
   transmissions: [s('AUTOMATIC', 'Automatic', 'neutral'), s('MANUAL', 'Manual', 'neutral')],
-  roles: [
-    s('SUPER_ADMIN', 'Super admin', 'danger'),
-    s('IT_ADMIN', 'IT admin', 'info'),
-    s('MANAGEMENT', 'Management', 'accent'),
-    s('FLEET_MANAGER', 'Fleet manager', 'success'),
-    s('FLEET_OFFICER', 'Fleet officer', 'success'),
-    s('DISPATCHER', 'Dispatcher', 'info'),
-    s('WORKSHOP_MANAGER', 'Workshop manager', 'warning'),
-    s('TECHNICIAN', 'Technician', 'warning'),
-    s('DRIVER', 'Driver', 'neutral'),
-    s('FINANCE', 'Finance', 'info'),
-    s('VIEWER', 'Viewer', 'neutral'),
-  ],
   serviceTypes: [
     s('Airport transfer', 'Airport transfer', 'neutral'),
     s('Hourly hire', 'Hourly hire', 'neutral'),
@@ -124,7 +118,12 @@ export const REFERENCE = {
     s('Fuel delivery', 'Fuel delivery', 'neutral'),
   ],
 }
-get('/reference', () => ({ ...REFERENCE, vehicleCategories: getDb().categories.map(toCategory) }))
+get('/reference', () => ({
+  ...REFERENCE,
+  // Roles live in the database, so badges and filters pick up roles created by an administrator.
+  roles: getDb().roles.map((r) => s(r.code, r.name, r.tone ?? 'neutral')),
+  vehicleCategories: getDb().categories.map(toCategory),
+}))
 get('/vehicle-categories', () => getDb().categories.map(toCategory), { permission: 'VEHICLE_READ' })
 post(
   '/vehicle-categories',

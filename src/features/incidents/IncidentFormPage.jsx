@@ -7,6 +7,8 @@ import { z } from 'zod'
 import Box from '@mui/material/Box'
 import { http } from '@/api/client'
 import { useOptions } from '@/app/ReferenceProvider'
+import { useAuth } from '@/app/AuthProvider'
+import { useDepartments } from '@/features/admin/api'
 import { useApiMutation, useDriverOptions, useVehicleOptions } from '@/features/common/hooks'
 import { FormPage } from '@/features/common/FormPage'
 import { Field, FormSection, Input, Select, Textarea, SuggestInput } from '@/components/ui/Field'
@@ -18,6 +20,7 @@ import { LOCATIONS } from '@/api/mock/data'
 const schema = z.object({
   vehicleId: z.coerce.number().int().positive('Choose a vehicle'),
   driverId: z.preprocess((v) => (v === '' || v == null ? null : Number(v)), z.number().int().nullable()),
+  departmentId: z.coerce.number().int().positive('Choose the department that should handle this'),
   occurredAt: z
     .string()
     .min(1, 'Date and time are required')
@@ -48,6 +51,8 @@ export default function IncidentFormPage() {
   const severities = useOptions('severity')
   const vehicles = useVehicleOptions()
   const drivers = useDriverOptions()
+  const { user } = useAuth()
+  const departments = useDepartments({ active: true })
   const existing = useQuery({ queryKey: ['incidents', 'detail', id], queryFn: () => http.get(`/incidents/${id}`), enabled: isEdit })
   const [serverError, setServerError] = useState(null)
   const {
@@ -64,6 +69,7 @@ export default function IncidentFormPage() {
     defaultValues: {
       vehicleId: search.get('vehicleId') ?? '',
       driverId: '',
+      departmentId: search.get('departmentId') ?? user?.department?.id ?? '',
       occurredAt: toInputDateTime(new Date()),
       location: '',
       type: '',
@@ -81,6 +87,7 @@ export default function IncidentFormPage() {
       reset({
         vehicleId: i.vehicleId,
         driverId: i.driverId ?? '',
+        departmentId: i.departmentId ?? '',
         occurredAt: toInputDateTime(i.occurredAt),
         location: i.location,
         type: i.type,
@@ -171,6 +178,37 @@ export default function IncidentFormPage() {
                 onChange={(v) => field.onChange(v ?? '')}
                 loading={drivers.isLoading}
                 placeholder="If a driver was involved"
+              />
+            )}
+          />
+        </Field>
+        <Field
+          label="Assigned department"
+          required
+          error={err('departmentId')}
+          hint={
+            isEdit
+              ? 'Hand the incident to another department from its page; a note is required.'
+              : 'Everyone in this department is notified as soon as the incident is reported.'
+          }
+        >
+          <Controller
+            control={control}
+            name="departmentId"
+            render={({ field }) => (
+              <Combobox
+                options={
+                  isEdit && existing.data?.departmentId && !departments.options.some((o) => o.value === existing.data.departmentId)
+                    ? [{ value: existing.data.departmentId, label: existing.data.departmentName }, ...departments.options]
+                    : departments.options
+                }
+                value={field.value}
+                onChange={(v) => field.onChange(v ?? '')}
+                loading={departments.isLoading}
+                invalid={!!errors.departmentId}
+                disabled={isEdit}
+                clearable={false}
+                placeholder="Choose department"
               />
             )}
           />

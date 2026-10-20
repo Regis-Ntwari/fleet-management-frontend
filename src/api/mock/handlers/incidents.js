@@ -2,7 +2,7 @@ import { format } from 'date-fns'
 import { get, post, put, patch } from '../router'
 import { getDb, nextId, persist } from '../db'
 import { badRequest, businessRule, inDateRange, matchesText, notFound, paginate } from '../core'
-import { diff, recordAudit, toIncident } from '../mappers'
+import { departmentMemberIds, diff, pushNotification, recordAudit, toIncident } from '../mappers'
 import { REFERENCE } from './reference'
 
 const auditI = (user, action, row, changes = null) =>
@@ -22,9 +22,28 @@ const findIncident = (id) => {
   return i
 }
 
-function validate(input) {
+/** Resolves and checks a department pick; `current` lets an incident keep a department that was deactivated later. */
+function checkDepartment(value, current, errors) {
+  const id = Number(value)
+  const dept = getDb().departments.find((x) => x.id === id)
+  if (!id || !dept) errors.push({ field: 'departmentId', message: 'Choose the department that should handle this.' })
+  else if (!dept.active && id !== current) errors.push({ field: 'departmentId', message: `${dept.name} is inactive.` })
+  return dept
+}
+
+/** Tells everyone in a department that an incident now sits with them. */
+function notifyDepartment(row, departmentId, actor, title) {
+  pushNotification(
+    departmentMemberIds(departmentId),
+    { title, body: `${row.incidentNumber}: ${row.description}`, link: `/incidents/${row.id}`, kind: 'ALERT' },
+    actor.id,
+  )
+}
+
+function validate(input, { existing } = {}) {
   const errors = []
   const d = getDb()
+  checkDepartment(input.departmentId, existing?.departmentId, errors)
   if (!d.vehicles.some((v) => v.id === Number(input.vehicleId) && !v.archived))
     errors.push({ field: 'vehicleId', message: 'Choose a vehicle.' })
   if (input.driverId && !d.drivers.some((x) => x.id === Number(input.driverId)))
@@ -55,6 +74,7 @@ get(
       .filter((i) => !query.type || i.type === query.type)
       .filter((i) => !query.vehicleId || i.vehicleId === Number(query.vehicleId))
       .filter((i) => !query.driverId || i.driverId === Number(query.driverId))
+      .filter((i) => !query.departmentId || i.departmentId === Number(query.departmentId))
       .filter((i) => inDateRange(i.occurredAt, query.from, query.to))
     return paginate(list, query, 'occurredAt,desc')
   },
@@ -94,6 +114,7 @@ post(
       incidentNumber: `INC-${format(now, 'yyMM')}-${String(id).padStart(3, '0')}`,
       vehicleId: Number(body.vehicleId),
       driverId: body.driverId ? Number(body.driverId) : null,
+      departmentId: Number(body.departmentId),
       occurredAt: new Date(body.occurredAt).toISOString(),
       location: body.location.trim(),
       type: body.type,
@@ -109,7 +130,10 @@ post(
       updatedAt: now.toISOString(),
     }
     const d = getDb()
+    const department = d.departments.find((x) => x.id === row.departmentId)
+    row.history.push(entry(user, `Assigned to ${department.name}`))
     d.incidents.push(row)
+    notifyDepartment(row, row.departmentId, user, `Incident assigned to ${department.name}`)
     if (['ACCIDENT', 'BREAKDOWN'].includes(row.type) && ['HIGH', 'CRITICAL'].includes(row.severity)) {
       const vehicle = d.vehicles.find((v) => v.id === row.vehicleId)
       if (vehicle && ['AVAILABLE', 'ASSIGNED', 'RESERVED'].includes(vehicle.status)) {
@@ -130,7 +154,8 @@ put(
   ({ params, body, user }) => {
     const row = findIncident(params.id)
     if (row.status === 'CLOSED') throw businessRule('Closed incidents cannot be edited.')
-    validate({ ...body, vehicleId: row.vehicleId })
+    // The department is deliberately not editable here: moving an incident requires a note (see /department).
+    validate({ ...body, vehicleId: row.vehicleId, departmentId: row.departmentId }, { existing: row })
     const before = { ...row }
     Object.assign(row, {
       driverId: body.driverId ? Number(body.driverId) : null,
@@ -193,6 +218,38 @@ patch(
     row.status = status
     row.updatedAt = new Date().toISOString()
     auditI(user, 'STATUS_CHANGE', row, [{ field: 'status', from, to: status }])
+    persist()
+    return toIncident(row)
+  },
+  { permission: 'INCIDENT_MANAGE' },
+)
+
+/**
+ * Moves an incident to another department. The note is mandatory so the receiving
+ * team knows why it landed with them; both the history and the audit log keep it.
+ */
+patch(
+  '/incidents/:id/department',
+  ({ params, body, user }) => {
+    const row = findIncident(params.id)
+    if (row.status === 'CLOSED') throw businessRule('Closed incidents cannot be reassigned.')
+    const { departmentId, note } = body ?? {}
+    const errors = []
+    const next = checkDepartment(departmentId, null, errors)
+    if (next && next.id === row.departmentId) errors.push({ field: 'departmentId', message: `This incident is already with ${next.name}.` })
+    if (!note?.trim() || note.trim().length < 10) errors.push({ field: 'note', message: 'Explain the handover in at least 10 characters.' })
+    if (errors.length) throw badRequest('Please correct the highlighted fields.', errors)
+    const d = getDb()
+    const previous = d.departments.find((x) => x.id === row.departmentId)
+    const from = row.departmentId
+    row.departmentId = next.id
+    row.updatedAt = new Date().toISOString()
+    row.history.push(entry(user, `Reassigned to ${next.name}`, `${previous?.name ?? 'Unassigned'} → ${next.name}. ${note.trim()}`))
+    auditI(user, 'ASSIGN', row, [
+      { field: 'departmentId', from, to: next.id },
+      { field: 'note', from: null, to: note.trim() },
+    ])
+    notifyDepartment(row, next.id, user, `Incident reassigned to ${next.name}`)
     persist()
     return toIncident(row)
   },

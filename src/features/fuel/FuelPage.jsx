@@ -17,16 +17,77 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Field'
 import { Badge, Dash } from '@/components/ui/Badge'
-import { SegmentedControl } from '@/components/ui/Tabs'
+import { SegmentedControl, Tabs, useActiveTab } from '@/components/ui/Tabs'
 import { ConfirmDialog } from '@/components/ui/Dialog'
 import { DateRangePicker, defaultRange } from '@/components/ui/DateRange'
 import { Stat, StatGrid } from '@/components/ui/Stat'
 import { EmptyState, LinkText } from '@/components/ui/Feedback'
 import { formatCurrency, formatDateTime, formatKm, formatLitres, formatNumber } from '@/utils/format'
+import { FuelAllocationsTab } from './FuelAllocationsTab'
 
 const DEFAULTS = { size: 20, ...defaultRange('30d') }
+const TABS = [
+  { key: 'transactions', label: 'Transactions' },
+  { key: 'allocations', label: 'Allocations' },
+]
 
+/** Fuel has two views: recorded transactions, and the allocations drivers are fulfilling. */
 export default function FuelPage() {
+  const tab = useActiveTab('tab', TABS)
+  const { can } = useAuth()
+  const [allocating, setAllocating] = useState(false)
+  const open = useQuery({
+    queryKey: ['fuel', 'allocations', 'summary'],
+    queryFn: () => http.get('/fuel/allocations/summary'),
+    enabled: can('FUEL_READ'),
+  })
+  const tabs = TABS.map((t) =>
+    t.key === 'allocations' && open.data ? { ...t, count: open.data.pending + open.data.submitted + open.data.returned } : t,
+  )
+  return (
+    <Stack spacing={2.5}>
+      <PageHeader
+        title="Fuel"
+        description={
+          tab === 'allocations'
+            ? 'Fuel the fleet officer has allocated to drivers. Drivers fill up, submit the receipt, and you verify it into a transaction.'
+            : 'Every fill with cost and consumption calculated against the previous odometer reading. Anomalies are flagged automatically.'
+        }
+        actions={
+          tab === 'allocations' ? (
+            can('FUEL_MANAGE') ? (
+              <Button variant="primary" icon={AddIcon} onClick={() => setAllocating(true)}>
+                Allocate fuel
+              </Button>
+            ) : null
+          ) : (
+            <>
+              {can('FUEL_MANAGE') ? (
+                <Button icon={UploadIcon} to="/admin/imports?type=fuel">
+                  Import CSV
+                </Button>
+              ) : null}
+              {can('FUEL_MANAGE') ? (
+                <Button variant="primary" icon={AddIcon} to="/fuel/new">
+                  Record fuel
+                </Button>
+              ) : null}
+            </>
+          )
+        }
+      >
+        <Tabs tabs={tabs} param="tab" />
+      </PageHeader>
+      {tab === 'allocations' ? (
+        <FuelAllocationsTab allocateOpen={allocating} onAllocateClose={() => setAllocating(false)} />
+      ) : (
+        <FuelTransactions />
+      )}
+    </Stack>
+  )
+}
+
+function FuelTransactions() {
   const [state, update, reset] = useSearchState(DEFAULTS)
   const navigate = useNavigate()
   const { can } = useAuth()
@@ -127,24 +188,6 @@ export default function FuelPage() {
 
   return (
     <Stack spacing={2.5}>
-      <PageHeader
-        title="Fuel"
-        description="Every fill with cost and consumption calculated against the previous odometer reading. Anomalies are flagged automatically."
-        actions={
-          <>
-            {can('FUEL_MANAGE') ? (
-              <Button icon={UploadIcon} to="/admin/imports?type=fuel">
-                Import CSV
-              </Button>
-            ) : null}
-            {can('FUEL_MANAGE') ? (
-              <Button variant="primary" icon={AddIcon} to="/fuel/new">
-                Record fuel
-              </Button>
-            ) : null}
-          </>
-        }
-      />
       <StatGrid cols={5}>
         <Stat label="Fills" value={s?.fills} loading={summary.isLoading} />
         <Stat label="Litres" value={s ? formatNumber(s.litres) : null} unit="L" loading={summary.isLoading} />
