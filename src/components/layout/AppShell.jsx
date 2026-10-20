@@ -87,7 +87,8 @@ export function AppShell() {
             <span>You are offline. Data shown may be out of date and changes cannot be saved.</span>
           </Stack>
         ) : null}
-        <Box component="main" id="main" sx={{ mx: 'auto', width: '100%', maxWidth: 1480, flex: 1, px: { xs: 2, sm: 3, lg: 4 }, py: 2.5 }}>
+        {/* Content fills the available width on every screen size; only the gutters grow with the viewport. */}
+        <Box component="main" id="main" sx={{ width: '100%', minWidth: 0, flex: 1, px: { xs: 2, sm: 3, lg: 4, xl: 5 }, py: 2.5 }}>
           <RouteErrorBoundary key={location.pathname}>
             <Outlet />
           </RouteErrorBoundary>

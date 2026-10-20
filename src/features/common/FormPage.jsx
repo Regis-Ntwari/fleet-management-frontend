@@ -52,17 +52,17 @@ export function FormPage({
           position: 'sticky',
           bottom: 0,
           zIndex: 20,
-          mx: { xs: -2, sm: -3, lg: -4 },
+          mx: { xs: -2, sm: -3, lg: -4, xl: -5 },
           mt: 4,
           borderTop: 1,
           borderColor: 'divider',
           bgcolor: 'rgba(var(--limoz-palette-background-defaultChannel) / 0.95)',
           backdropFilter: 'blur(8px)',
-          px: { xs: 2, sm: 3, lg: 4 },
+          px: { xs: 2, sm: 3, lg: 4, xl: 5 },
           py: 1.5,
         }}
       >
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'flex-end', mx: 'auto', maxWidth: 1480 }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'flex-end' }}>
           {extraActions}
           <Button variant="ghost" to={cancelTo} disabled={isSubmitting}>
             Cancel
