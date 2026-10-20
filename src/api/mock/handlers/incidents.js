@@ -2,8 +2,7 @@ import { format } from 'date-fns'
 import { get, post, put, patch } from '../router'
 import { getDb, nextId, persist } from '../db'
 import { badRequest, businessRule, inDateRange, matchesText, notFound, paginate } from '../core'
-import { departmentMemberIds, diff, pushNotification, recordAudit, toIncident } from '../mappers'
-import { REFERENCE } from './reference'
+import { departmentMemberIds, diff, isLookupValue, lookupItems, pushNotification, recordAudit, toIncident } from '../mappers'
 
 const auditI = (user, action, row, changes = null) =>
   recordAudit({
@@ -51,11 +50,10 @@ function validate(input, { existing } = {}) {
   if (!input.occurredAt) errors.push({ field: 'occurredAt', message: 'Date and time are required.' })
   else if (new Date(input.occurredAt) > new Date()) errors.push({ field: 'occurredAt', message: 'Cannot be in the future.' })
   if (!input.location?.trim()) errors.push({ field: 'location', message: 'Location is required.' })
-  if (!REFERENCE.incidentTypes.some((t) => t.value === input.type)) errors.push({ field: 'type', message: 'Choose an incident type.' })
+  if (!isLookupValue('incidentTypes', input.type)) errors.push({ field: 'type', message: 'Choose an incident type.' })
   if (!input.description?.trim() || input.description.trim().length < 10)
     errors.push({ field: 'description', message: 'Describe what happened (at least 10 characters).' })
-  if (!REFERENCE.incidentSeverities.some((s) => s.value === input.severity))
-    errors.push({ field: 'severity', message: 'Choose a severity.' })
+  if (!isLookupValue('incidentSeverities', input.severity)) errors.push({ field: 'severity', message: 'Choose a severity.' })
   if (input.estimatedCost != null && input.estimatedCost !== '' && Number(input.estimatedCost) < 0)
     errors.push({ field: 'estimatedCost', message: 'Cannot be negative.' })
   if (errors.length) throw badRequest('Please correct the highlighted fields.', errors)
@@ -93,7 +91,7 @@ get(
       estimatedCostOpen: list
         .filter((i) => ['OPEN', 'UNDER_INVESTIGATION'].includes(i.status))
         .reduce((s, i) => s + (i.estimatedCost ?? 0), 0),
-      byType: REFERENCE.incidentTypes
+      byType: lookupItems('incidentTypes')
         .map((t) => ({ type: t.value, label: t.label, count: list.filter((i) => i.type === t.value).length }))
         .filter((x) => x.count > 0),
     }

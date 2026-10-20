@@ -1,8 +1,7 @@
 import { get, post, put, del } from '../router'
 import { getDb, nextId, persist } from '../db'
 import { badRequest, businessRule, conflict, matchesText, notFound, paginate } from '../core'
-import { diff, recordAudit, toDocument } from '../mappers'
-import { REFERENCE } from './reference'
+import { diff, isLookupValue, lookupItems, recordAudit, toDocument } from '../mappers'
 
 const auditD = (user, action, row, changes = null) =>
   recordAudit({
@@ -30,7 +29,7 @@ function validate(input, existingId = null) {
       ? d.vehicles.some((v) => v.id === Number(input.ownerId) && !v.archived)
       : d.drivers.some((x) => x.id === Number(input.ownerId) && !x.archived)
   if (!ownerExists) errors.push({ field: 'ownerId', message: `Choose a ${String(input.ownerType ?? 'vehicle').toLowerCase()}.` })
-  if (!REFERENCE.documentTypes.some((t) => t.value === input.type)) errors.push({ field: 'type', message: 'Choose a document type.' })
+  if (!isLookupValue('documentTypes', input.type)) errors.push({ field: 'type', message: 'Choose a document type.' })
   if (!input.number?.trim()) errors.push({ field: 'number', message: 'Document number is required.' })
   if (!input.issueDate) errors.push({ field: 'issueDate', message: 'Issue date is required.' })
   if (!input.expiryDate) errors.push({ field: 'expiryDate', message: 'Expiry date is required.' })
@@ -75,7 +74,7 @@ get(
       expiringSoon: list.filter((x) => x.status === 'EXPIRING_SOON').length,
       valid: list.filter((x) => x.status === 'VALID').length,
       windows: warn.map((days) => ({ days, count: list.filter((x) => x.daysToExpiry >= 0 && x.daysToExpiry <= days).length })),
-      byType: REFERENCE.documentTypes
+      byType: lookupItems('documentTypes')
         .map((t) => ({
           type: t.value,
           label: t.label,

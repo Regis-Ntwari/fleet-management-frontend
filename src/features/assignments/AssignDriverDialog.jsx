@@ -8,11 +8,11 @@ import { Field, Input, Textarea, SuggestInput } from '@/components/ui/Field'
 import { Combobox } from '@/components/ui/Combobox'
 import { InlineAlert } from '@/components/ui/Feedback'
 import { toInputDateTime } from '@/utils/format'
-
-const PURPOSES = ['Pool assignment', 'Dedicated client driver', 'VIP protocol driver', 'Safari season', 'Depot shuttle', 'Temporary cover']
+import { useSuggestions } from '@/app/ReferenceProvider'
 
 /** Assign a driver to a vehicle. Either side can be fixed by the caller. */
 export function AssignDriverDialog({ open, onClose, vehicleId: fixedVehicleId, driverId: fixedDriverId, onAssigned }) {
+  const purposes = useSuggestions('assignmentPurpose')
   const [vehicleId, setVehicleId] = useState(fixedVehicleId ?? null)
   const [driverId, setDriverId] = useState(fixedDriverId ?? null)
   const [purpose, setPurpose] = useState('Pool assignment')
@@ -91,7 +91,7 @@ export function AssignDriverDialog({ open, onClose, vehicleId: fixedVehicleId, d
             id="assign-purpose"
             value={purpose}
             onChange={(e) => setPurpose(e.target.value)}
-            suggestions={PURPOSES}
+            suggestions={purposes}
             autoFocus={Boolean(fixedVehicleId && fixedDriverId)}
           />
         </Field>

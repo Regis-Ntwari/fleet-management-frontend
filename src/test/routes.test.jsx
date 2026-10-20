@@ -47,6 +47,7 @@ const SCREENS = (db) => [
   ['/admin/users', /^users$/i],
   ['/admin/roles', /^roles$/i],
   ['/admin/departments', /^departments$/i],
+  ['/admin/reference', /reference data/i],
   ['/admin/audit', /audit log/i],
   ['/admin/imports', /import data/i],
   ['/settings', /^settings$/i],

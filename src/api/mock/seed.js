@@ -12,6 +12,7 @@ import {
 } from 'date-fns'
 import { Rng } from './rng'
 import { DEFAULT_DEPARTMENTS, DEFAULT_ROLES } from './core'
+import { LOOKUP_LISTS } from './lookupDefs'
 import {
   CATEGORIES,
   CITY_LOCATIONS,
@@ -34,7 +35,7 @@ import {
   UPCOUNTRY_LOCATIONS,
   WORKSHOPS,
 } from './data'
-export const SEED_VERSION = 9
+export const SEED_VERSION = 10
 export const DEMO_PASSWORD = 'Limoz#2026'
 const HISTORY_DAYS = 90
 const FUTURE_DAYS = 10
@@ -97,6 +98,22 @@ export function buildSeed(now = new Date()) {
     ...ts(subMonths(now, 10)),
   }))
   const departmentByCode = (code) => departments.find((d) => d.code === code)
+  // ---------- reference lists ----------
+  // Every dropdown value lives here so administrators can add, rename, recolour and retire them.
+  const lookups = LOOKUP_LISTS.flatMap((def) =>
+    def.items.map((item, index) => ({
+      id: nextId('lookup'),
+      list: def.key,
+      value: item.value,
+      label: item.label,
+      tone: item.tone ?? 'neutral',
+      description: item.description ?? null,
+      active: true,
+      system: Boolean(item.system),
+      sortOrder: index + 1,
+      ...ts(subMonths(now, 10)),
+    })),
+  )
   // ---------- users ----------
   const users = DEMO_USERS.map(({ role, department, ...u }) => ({
     id: nextId('user'),
@@ -1263,6 +1280,7 @@ export function buildSeed(now = new Date()) {
     version: SEED_VERSION,
     seededOn: day(today),
     settings: { ...DEFAULT_SETTINGS },
+    lookups,
     roles,
     departments,
     users,

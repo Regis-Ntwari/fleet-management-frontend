@@ -2,8 +2,7 @@ import { addDays, differenceInCalendarDays, eachDayOfInterval, format, parseISO,
 import { get } from '../router'
 import { getDb } from '../db'
 import { inDateRange } from '../core'
-import { computeAlerts, currentAssignmentOf, documentStatus, toMaintenance, toSchedule } from '../mappers'
-import { REFERENCE } from './reference'
+import { computeAlerts, currentAssignmentOf, documentStatus, lookupItems, toMaintenance, toSchedule } from '../mappers'
 
 const today = () => format(new Date(), 'yyyy-MM-dd')
 
@@ -135,7 +134,7 @@ get(
   '/dashboard/fleet-status',
   ({ query }) => {
     const { vehicles } = scope(query)
-    return REFERENCE.vehicleStatuses.map((s) => ({
+    return lookupItems('vehicleStatuses').map((s) => ({
       status: s.value,
       label: s.label,
       tone: s.tone,
@@ -263,7 +262,7 @@ get(
     const schedules = d.schedules.map(toSchedule)
     return {
       trend: [...months.values()].sort((a, b) => a.month.localeCompare(b.month)),
-      byType: REFERENCE.maintenanceTypes.map((t) => ({
+      byType: lookupItems('maintenanceTypes').map((t) => ({
         type: t.value,
         label: t.label,
         count: list.filter((m) => m.type === t.value && inDateRange(m.reportedAt, from, to)).length,

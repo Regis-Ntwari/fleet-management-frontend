@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Box from '@mui/material/Box'
 import { http } from '@/api/client'
-import { useOptions } from '@/app/ReferenceProvider'
+import { useOptions, useSuggestions } from '@/app/ReferenceProvider'
 import { useAuth } from '@/app/AuthProvider'
 import { useDepartments } from '@/features/admin/api'
 import { useApiMutation, useDriverOptions, useVehicleOptions } from '@/features/common/hooks'
@@ -15,7 +15,6 @@ import { Field, FormSection, Input, Select, Textarea, SuggestInput } from '@/com
 import { Combobox } from '@/components/ui/Combobox'
 import { ErrorState, PageSpinner, InlineAlert } from '@/components/ui/Feedback'
 import { toInputDateTime } from '@/utils/format'
-import { LOCATIONS } from '@/api/mock/data'
 
 const schema = z.object({
   vehicleId: z.coerce.number().int().positive('Choose a vehicle'),
@@ -43,6 +42,7 @@ const schema = z.object({
 })
 
 export default function IncidentFormPage() {
+  const locations = useSuggestions('location')
   const { id } = useParams()
   const [search] = useSearchParams()
   const isEdit = Boolean(id)
@@ -223,7 +223,7 @@ export default function IncidentFormPage() {
           />
         </Field>
         <Field label="Location" htmlFor="location" required error={err('location')}>
-          <SuggestInput id="location" suggestions={LOCATIONS} {...register('location')} invalid={!!errors.location} />
+          <SuggestInput id="location" suggestions={locations} {...register('location')} invalid={!!errors.location} />
         </Field>
         <Field label="Type" htmlFor="type" required error={err('type')}>
           <Select id="type" {...register('type')} invalid={!!errors.type} placeholder="Choose type">

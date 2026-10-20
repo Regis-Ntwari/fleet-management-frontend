@@ -20,6 +20,7 @@ import CorporateFareIcon from '@mui/icons-material/CorporateFare'
 import HistoryIcon from '@mui/icons-material/History'
 import SettingsIcon from '@mui/icons-material/Settings'
 import UploadIcon from '@mui/icons-material/Upload'
+import ListAltIcon from '@mui/icons-material/ListAlt'
 import TodayIcon from '@mui/icons-material/Today'
 
 /** Any of these opens the driver workspace ("My day"); the Driver role holds exactly these three. */
@@ -78,6 +79,7 @@ export const NAV_GROUPS = [
       { to: '/admin/users', label: 'Users', icon: ManageAccountsIcon, permission: 'USER_MANAGE' },
       { to: '/admin/roles', label: 'Roles', icon: AdminPanelSettingsIcon, permission: 'ROLE_MANAGE' },
       { to: '/admin/departments', label: 'Departments', icon: CorporateFareIcon, permission: 'DEPARTMENT_MANAGE' },
+      { to: '/admin/reference', label: 'Reference data', icon: ListAltIcon, permission: 'REFERENCE_MANAGE' },
       { to: '/admin/audit', label: 'Audit log', icon: HistoryIcon, permission: 'AUDIT_VIEW' },
       { to: '/admin/imports', label: 'Imports', icon: UploadIcon, permission: ['VEHICLE_CREATE', 'DRIVER_MANAGE', 'FUEL_MANAGE'] },
       { to: '/settings', label: 'Settings', icon: SettingsIcon, permission: 'DASHBOARD_VIEW' },

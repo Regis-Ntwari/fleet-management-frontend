@@ -6,14 +6,13 @@ import Box from '@mui/material/Box'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { http } from '@/api/client'
-import { useOptions } from '@/app/ReferenceProvider'
+import { useOptions, useSuggestions } from '@/app/ReferenceProvider'
 import { useApiMutation, useDriverOptions, useVehicleOptions } from '@/features/common/hooks'
 import { FormPage } from '@/features/common/FormPage'
 import { Field, FormSection, Input, Select, Textarea, SuggestInput } from '@/components/ui/Field'
 import { Combobox } from '@/components/ui/Combobox'
 import { ErrorState, PageSpinner } from '@/components/ui/Feedback'
 import { formatCurrency, formatKm, toInputDateTime } from '@/utils/format'
-import { STATIONS } from '@/api/mock/data'
 
 const schema = z.object({
   vehicleId: z.coerce.number().int().positive('Choose a vehicle'),
@@ -37,6 +36,7 @@ const schema = z.object({
 })
 
 export default function FuelFormPage() {
+  const stations = useSuggestions('fuelStation')
   const { id } = useParams()
   const [search] = useSearchParams()
   const isEdit = Boolean(id)
@@ -182,7 +182,7 @@ export default function FuelFormPage() {
       </FormSection>
       <FormSection title="Transaction">
         <Field label="Station" htmlFor="station" required error={err('station')}>
-          <SuggestInput id="station" suggestions={STATIONS} {...register('station')} invalid={!!errors.station} />
+          <SuggestInput id="station" suggestions={stations} {...register('station')} invalid={!!errors.station} />
         </Field>
         <Field label="Date & time" htmlFor="transactedAt" required error={err('transactedAt')}>
           <Input

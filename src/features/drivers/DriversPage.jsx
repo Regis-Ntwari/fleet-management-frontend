@@ -13,7 +13,7 @@ import { Select } from '@/components/ui/Field'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge, Dash, StatusBadge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/Feedback'
-import { formatDate, humanize } from '@/utils/format'
+import { formatDate } from '@/utils/format'
 
 export function LicenceBadge({ expiry }) {
   const days = Math.ceil((new Date(expiry) - new Date()) / 86_400_000)
@@ -40,6 +40,7 @@ export default function DriversPage() {
   const [state, update, reset] = useSearchState({ size: 20 })
   const navigate = useNavigate()
   const statuses = useOptions('driver')
+  const employmentStatuses = useOptions('employmentStatus')
   const params = useMemo(
     () => ({
       q: state.q,
@@ -134,9 +135,9 @@ export default function DriversPage() {
               placeholder="Any employment"
               aria-label="Employment"
             >
-              {['FULL_TIME', 'CONTRACT', 'CASUAL'].map((s) => (
-                <option key={s} value={s}>
-                  {humanize(s)}
+              {employmentStatuses.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
                 </option>
               ))}
             </Select>

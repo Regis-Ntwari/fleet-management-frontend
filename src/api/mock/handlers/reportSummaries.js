@@ -1,5 +1,5 @@
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from 'date-fns'
-import { REFERENCE } from './reference'
+import { lookupItems } from '../mappers'
 
 /**
  * Visual summary for every report, declared as data so the screen and the
@@ -146,7 +146,7 @@ export const summaries = {
           type: 'donut',
           span: 1,
           series: [{ key: 'value', label: 'Vehicles', format: 'number' }],
-          data: donutByEnum(rows, (r) => r.status, REFERENCE.vehicleStatuses, { tones: false }),
+          data: donutByEnum(rows, (r) => r.status, lookupItems('vehicleStatuses'), { tones: false }),
         },
         {
           key: 'distance',
@@ -215,7 +215,7 @@ export const summaries = {
       rows,
       (r) => r.scheduledStartAt,
       (r) => r.status,
-      REFERENCE.tripStatuses,
+      lookupItems('tripStatuses'),
     )
     const byVehicle = [...countBy(rows, (r) => r.plateNumber).entries()].map(([plateNumber, trips]) => ({ plateNumber, trips }))
     return {
@@ -251,7 +251,7 @@ export const summaries = {
           type: 'donut',
           span: 1,
           series: [{ key: 'value', label: 'Trips', format: 'number' }],
-          data: donutByEnum(rows, (r) => r.status, REFERENCE.tripStatuses),
+          data: donutByEnum(rows, (r) => r.status, lookupItems('tripStatuses')),
         },
         {
           key: 'vehicles',
@@ -404,7 +404,7 @@ export const summaries = {
       rows,
       (r) => r.reportedAt,
       (r) => r.type,
-      REFERENCE.maintenanceTypes,
+      lookupItems('maintenanceTypes'),
       { tones: false },
     )
     const byWorkshop = Object.values(
@@ -445,7 +445,7 @@ export const summaries = {
           type: 'donut',
           span: 1,
           series: [{ key: 'value', label: 'Jobs', format: 'number' }],
-          data: donutByEnum(rows, (r) => r.status, REFERENCE.maintenanceStatuses, { tones: false }),
+          data: donutByEnum(rows, (r) => r.status, lookupItems('maintenanceStatuses'), { tones: false }),
         },
         {
           key: 'workshops',
@@ -745,7 +745,7 @@ export const summaries = {
       rows,
       (r) => r.occurredAt,
       (r) => r.severity,
-      REFERENCE.incidentSeverities,
+      lookupItems('incidentSeverities'),
     )
     const byVehicle = [...countBy(rows, (r) => r.plateNumber).entries()].map(([plateNumber, count]) => ({ plateNumber, count }))
     return {
@@ -779,7 +779,7 @@ export const summaries = {
           type: 'donut',
           span: 1,
           series: [{ key: 'value', label: 'Incidents', format: 'number' }],
-          data: donutByEnum(rows, (r) => r.type, REFERENCE.incidentTypes, { tones: false }),
+          data: donutByEnum(rows, (r) => r.type, lookupItems('incidentTypes'), { tones: false }),
         },
         {
           key: 'vehicles',
@@ -804,7 +804,7 @@ export const summaries = {
       { label: '15–30 days', tone: 'warning', test: (d) => d > 14 && d <= 30 },
       { label: '31+ days', tone: 'info', test: (d) => d > 30 },
     ]
-    const types = REFERENCE.documentTypes.filter((t) => rows.some((r) => r.type === t.value))
+    const types = lookupItems('documentTypes').filter((t) => rows.some((r) => r.type === t.value))
     return {
       kpis: [
         kpi('documents', 'Documents', rows.length, 'number'),

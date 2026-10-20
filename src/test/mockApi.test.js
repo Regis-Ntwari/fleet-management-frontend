@@ -562,3 +562,90 @@ describe('driver workflow: fuel allocations, own trips and vehicle reports', () 
     expect(ws.driver.id).toBe(free.id)
   })
 })
+
+describe('reference data is editable by administrators and feeds every dropdown', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    useAuthStore.getState().clearSession()
+    resetDb()
+  })
+
+  it('lists every dropdown source, adds a station and an incident type, and forms pick them up', async () => {
+    await signIn('it@limoz.rw')
+    const lists = await http.get('/lookups')
+    const keys = lists.map((l) => l.key)
+    for (const k of [
+      'fuelStations',
+      'workshops',
+      'technicians',
+      'locations',
+      'incidentTypes',
+      'documentTypes',
+      'employmentStatuses',
+      'tripStatuses',
+    ])
+      expect(keys).toContain(k)
+    const station = await http.post('/lookups/fuelStations/items', { label: 'Kobil Nyamirambo' })
+    expect(station).toMatchObject({ value: 'Kobil Nyamirambo', active: true, usageCount: 0 })
+    const dup = await fail(http.post('/lookups/fuelStations/items', { label: 'kobil nyamirambo' }))
+    expect(dup.status).toBe(409)
+    const type = await http.post('/lookups/incidentTypes/items', { label: 'Near miss', tone: 'warning' })
+    expect(type.value).toBe('NEAR_MISS')
+    const ref = await http.get('/reference')
+    expect(ref.fuelStations.map((s) => s.label)).toContain('Kobil Nyamirambo')
+    expect(ref.incidentTypes.find((t) => t.value === 'NEAR_MISS')).toMatchObject({ label: 'Near miss', tone: 'warning' })
+
+    // The new type is immediately valid on the incident form.
+    useAuthStore.getState().clearSession()
+    await signIn('dispatch@limoz.rw')
+    const d = getDb()
+    const incident = await http.post('/incidents', {
+      vehicleId: d.vehicles[0].id,
+      occurredAt: new Date(Date.now() - 3600_000).toISOString(),
+      location: 'Kacyiru',
+      type: 'NEAR_MISS',
+      severity: 'LOW',
+      description: 'Pedestrian stepped out at the roundabout.',
+      departmentId: d.departments[0].id,
+    })
+    expect(incident.type).toBe('NEAR_MISS')
+    const forbidden = await fail(http.get('/lookups'))
+    expect(forbidden.status).toBe(403)
+  })
+
+  it('protects values in use and those business rules depend on, but lets them be renamed', async () => {
+    await signIn('admin@limoz.rw')
+    const fuel = await http.get('/lookups/fuelTypes')
+    const diesel = fuel.items.find((i) => i.value === 'DIESEL')
+    expect(diesel.system).toBe(true)
+    expect(diesel.usageCount).toBeGreaterThan(0)
+    const locked = await fail(http.delete(`/lookups/fuelTypes/items/${diesel.id}`))
+    expect(locked.status).toBe(422)
+    const renamed = await http.put(`/lookups/fuelTypes/items/${diesel.id}`, { label: 'Diesel (AGO)', tone: 'info' })
+    expect(renamed).toMatchObject({ value: 'DIESEL', label: 'Diesel (AGO)', tone: 'info' })
+    expect((await http.get('/reference')).fuelTypes.find((f) => f.value === 'DIESEL').label).toBe('Diesel (AGO)')
+
+    const types = await http.get('/lookups/incidentTypes')
+    const theft = types.items.find((i) => i.value === 'THEFT')
+    if (theft.usageCount) {
+      const inUse = await fail(http.delete(`/lookups/incidentTypes/items/${theft.id}`))
+      expect(inUse.status).toBe(409)
+    }
+    const retired = await http.patch(`/lookups/incidentTypes/items/${theft.id}/status`, { active: false })
+    expect(retired.active).toBe(false)
+    expect((await http.get('/reference')).incidentTypes.some((t) => t.value === 'THEFT')).toBe(false)
+    expect(getDb().lookups.some((r) => r.list === 'incidentTypes' && r.value === 'THEFT')).toBe(true)
+
+    const statuses = await http.get('/lookups/tripStatuses')
+    const noAdd = await fail(http.post('/lookups/tripStatuses/items', { label: 'Paused' }))
+    expect(noAdd.status).toBe(422)
+    const noRetire = await fail(http.patch(`/lookups/tripStatuses/items/${statuses.items[0].id}/status`, { active: false }))
+    expect(noRetire.status).toBe(422)
+
+    const order = await http.put('/lookups/fuelStations/order', {
+      ids: (await http.get('/lookups/fuelStations')).items.map((i) => i.id).reverse(),
+    })
+    expect(order.items[0].label).toBe('Depot bowser (Gikondo)')
+    expect(getDb().audit[0]).toMatchObject({ entityType: 'REFERENCE_LIST' })
+  })
+})

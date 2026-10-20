@@ -59,6 +59,12 @@ export const PERMISSIONS = [
   P('DEPARTMENT_MANAGE', 'Manage departments', 'Administration', 'Create and edit departments.'),
   P('AUDIT_VIEW', 'View audit log', 'Administration', 'Who changed what and when.'),
   P('SETTINGS_MANAGE', 'Manage settings', 'Administration', 'Thresholds, categories and demo data.'),
+  P(
+    'REFERENCE_MANAGE',
+    'Manage reference lists',
+    'Administration',
+    'The values behind every dropdown: fuel stations, workshops, incident types, document types and more.',
+  ),
   // Driver self-service: scoped to the driver profile linked to the account, never to the whole fleet.
   P('TRIP_START', 'Start own trips', 'Driver', 'Start and complete trips where you are the driver.'),
   P('FUEL_SUBMIT', 'Fill up as allocated', 'Driver', 'See your fuel allocations, fill up at the station and submit the receipt.'),
@@ -93,6 +99,7 @@ export const DEFAULT_ROLES = [
     'DEPARTMENT_MANAGE',
     'AUDIT_VIEW',
     'SETTINGS_MANAGE',
+    'REFERENCE_MANAGE',
   ]),
   R('MANAGEMENT', 'Management', 'accent', 'Read-only oversight with report exports and the audit trail.', [
     ...READ_ALL,
@@ -114,6 +121,7 @@ export const DEFAULT_ROLES = [
     'DOCUMENT_MANAGE',
     'REPORT_EXPORT',
     'SETTINGS_MANAGE',
+    'REFERENCE_MANAGE',
     'PARTS_MANAGE',
   ]),
   R('FLEET_OFFICER', 'Fleet officer', 'success', 'Day-to-day fleet administration.', [

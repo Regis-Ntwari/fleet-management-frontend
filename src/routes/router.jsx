@@ -105,6 +105,7 @@ export const router = createBrowserRouter([
       { path: 'admin/users', element: page(() => import('@/features/admin/UsersPage'), 'USER_MANAGE') },
       { path: 'admin/roles', element: page(() => import('@/features/admin/RolesPage'), 'ROLE_MANAGE') },
       { path: 'admin/departments', element: page(() => import('@/features/admin/DepartmentsPage'), 'DEPARTMENT_MANAGE') },
+      { path: 'admin/reference', element: page(() => import('@/features/admin/ReferenceDataPage'), 'REFERENCE_MANAGE') },
       { path: 'admin/audit', element: page(() => import('@/features/admin/AuditPage'), 'AUDIT_VIEW') },
       {
         path: 'admin/imports',

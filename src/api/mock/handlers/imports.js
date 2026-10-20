@@ -1,8 +1,7 @@
 import { post } from '../router'
 import { getDb, nextId, persist } from '../db'
 import { badRequest } from '../core'
-import { recordAudit } from '../mappers'
-import { REFERENCE } from './reference'
+import { isLookupValue, recordAudit } from '../mappers'
 
 /**
  * CSV import: the client parses the file and posts rows; the server validates each
@@ -34,7 +33,7 @@ const importers = {
       const fuelType = String(row.fuelType ?? 'DIESEL')
         .trim()
         .toUpperCase()
-      if (!REFERENCE.fuelTypes.some((f) => f.value === fuelType)) errors.push(`Invalid fuel type "${row.fuelType}"`)
+      if (!isLookupValue('fuelTypes', fuelType)) errors.push(`Invalid fuel type "${row.fuelType}"`)
       const odo = Number(row.odometerKm ?? 0)
       if (!Number.isFinite(odo) || odo < 0) errors.push(`Invalid odometer "${row.odometerKm}"`)
       if (errors.length) return { errors }

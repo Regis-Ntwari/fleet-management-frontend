@@ -7,6 +7,8 @@ import {
   currentAssignmentOfDriver,
   diff,
   driverOfUser,
+  isLookupValue,
+  lookupItems,
   pushNotification,
   recordAudit,
   toMaintenance,
@@ -14,7 +16,6 @@ import {
   userCan,
   userIdsWithPermission,
 } from '../mappers'
-import { REFERENCE } from './reference'
 
 const auditM = (user, action, row, changes = null) =>
   recordAudit({
@@ -41,7 +42,7 @@ function validate(input) {
   const vehicle = d.vehicles.find((v) => v.id === Number(input.vehicleId) && !v.archived)
   if (!vehicle) errors.push({ field: 'vehicleId', message: 'Choose a vehicle.' })
   if (!input.complaint?.trim()) errors.push({ field: 'complaint', message: 'Describe the complaint or problem.' })
-  if (!REFERENCE.maintenanceTypes.some((t) => t.value === input.type)) errors.push({ field: 'type', message: 'Choose a maintenance type.' })
+  if (!isLookupValue('maintenanceTypes', input.type)) errors.push({ field: 'type', message: 'Choose a maintenance type.' })
   if (!input.workshop?.trim()) errors.push({ field: 'workshop', message: 'Workshop is required.' })
   const odo = Number(input.odometerKm)
   if (!Number.isFinite(odo) || odo < 0) errors.push({ field: 'odometerKm', message: 'Enter the odometer reading.' })
@@ -96,7 +97,7 @@ get(
       costThisMonth: list
         .filter((m) => m.status === 'COMPLETED' && (m.completedAt ?? '').startsWith(month))
         .reduce((s, m) => s + m.totalCost, 0),
-      byStatus: REFERENCE.maintenanceStatuses.map((s) => ({
+      byStatus: lookupItems('maintenanceStatuses').map((s) => ({
         status: s.value,
         label: s.label,
         count: list.filter((m) => m.status === s.value).length,
@@ -197,7 +198,7 @@ post(
     const complaint = input.complaint?.trim()
     if (!complaint || complaint.length < 5) errors.push({ field: 'complaint', message: 'Describe the problem in a few words.' })
     const type = input.type ?? 'CORRECTIVE'
-    if (!REFERENCE.maintenanceTypes.some((t) => t.value === type)) errors.push({ field: 'type', message: 'Choose a maintenance type.' })
+    if (!isLookupValue('maintenanceTypes', type)) errors.push({ field: 'type', message: 'Choose a maintenance type.' })
     const odo = input.odometerKm === '' || input.odometerKm == null ? (vehicle?.odometerKm ?? 0) : Number(input.odometerKm)
     if (!Number.isFinite(odo) || odo < 0) errors.push({ field: 'odometerKm', message: 'Enter the odometer reading.' })
     else if (vehicle && odo < vehicle.odometerKm - 50)

@@ -4,6 +4,7 @@ import { badRequest, businessRule, conflict, matchesText, notFound, paginate } f
 import {
   currentAssignmentOfDriver,
   diff,
+  isLookupValue,
   recordAudit,
   toAssignment,
   toDocument,
@@ -12,7 +13,6 @@ import {
   toIncident,
   toTrip,
 } from '../mappers'
-import { REFERENCE } from './reference'
 
 const audit = (user, action, row, changes = null) =>
   recordAudit({
@@ -50,10 +50,10 @@ function validateDriver(input, existingId = null) {
   if (!input.licenseExpiry) errors.push({ field: 'licenseExpiry', message: 'Expiry date is required.' })
   else if (input.licenseIssueDate && input.licenseExpiry <= input.licenseIssueDate)
     errors.push({ field: 'licenseExpiry', message: 'Expiry must be after the issue date.' })
-  if (!['FULL_TIME', 'CONTRACT', 'CASUAL'].includes(input.employmentStatus))
+  if (!isLookupValue('employmentStatuses', input.employmentStatus))
     errors.push({ field: 'employmentStatus', message: 'Choose an employment status.' })
   if (!input.joiningDate) errors.push({ field: 'joiningDate', message: 'Joining date is required.' })
-  if (!REFERENCE.driverStatuses.some((s) => s.value === input.status)) errors.push({ field: 'status', message: 'Choose a status.' })
+  if (!isLookupValue('driverStatuses', input.status)) errors.push({ field: 'status', message: 'Choose a status.' })
   if (errors.length) throw badRequest('Please correct the highlighted fields.', errors)
 }
 
@@ -164,7 +164,7 @@ patch(
   ({ params, body, user }) => {
     const row = findDriver(params.id)
     const { status } = body ?? {}
-    if (!REFERENCE.driverStatuses.some((s) => s.value === status)) throw badRequest('Choose a valid status.')
+    if (!isLookupValue('driverStatuses', status)) throw badRequest('Choose a valid status.')
     if (row.status === 'ON_TRIP') throw businessRule('This driver is on a trip. Complete the trip first.')
     if (['INACTIVE', 'SUSPENDED', 'ON_LEAVE', 'OFF_DUTY'].includes(status) && currentAssignmentOfDriver(row.id))
       throw businessRule('End the active vehicle assignment first.')

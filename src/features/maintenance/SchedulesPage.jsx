@@ -20,18 +20,7 @@ import { SegmentedControl } from '@/components/ui/Tabs'
 import { ConfirmDialog, Dialog } from '@/components/ui/Dialog'
 import { EmptyState, InlineAlert, LinkText } from '@/components/ui/Feedback'
 import { formatDate, formatKm, formatNumber } from '@/utils/format'
-
-const TASKS = [
-  'Engine oil & filter',
-  'Oil filter',
-  'Air filter',
-  'Fuel filter',
-  'Brake inspection',
-  'Tyre rotation',
-  'Tyres',
-  'Transmission fluid',
-  'General service',
-]
+import { useSuggestions } from '@/app/ReferenceProvider'
 
 export default function SchedulesPage() {
   const [state, update, reset] = useSearchState({ size: 25 })
@@ -201,6 +190,7 @@ export default function SchedulesPage() {
 }
 
 function ScheduleDialog({ open, onClose, schedule, vehicleOptions }) {
+  const TASKS = useSuggestions('serviceTask')
   const isEdit = Boolean(schedule)
   const [error, setError] = useState(null)
   const {

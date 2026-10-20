@@ -12,10 +12,10 @@ import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { Field, Input, SuggestInput, Textarea } from '@/components/ui/Field'
 import { InlineAlert } from '@/components/ui/Feedback'
-import { STATIONS } from '@/api/mock/data'
 import { formatCurrency, formatKm, formatLitres, toInputDateTime } from '@/utils/format'
 import { PROOF_ACCEPT, readProofFile } from '@/utils/files'
 import { ProofPreview } from './ProofPreview'
+import { useSuggestions } from '@/app/ReferenceProvider'
 
 const DEFAULT_PRICE = { PETROL: 1790, DIESEL: 1720, HYBRID: 1790 }
 
@@ -43,6 +43,7 @@ export function FuelSubmitDialog({ allocation, open, onClose, onDone }) {
 }
 
 function FuelSubmitForm({ allocation, onClose, onDone }) {
+  const stations = useSuggestions('fuelStation')
   const [values, setValues] = useState(() => initialValues(allocation))
   const [proof, setProof] = useState(allocation?.submission?.proof ?? null)
   const [proofError, setProofError] = useState(null)
@@ -194,7 +195,7 @@ function FuelSubmitForm({ allocation, onClose, onDone }) {
         </Field>
         <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { sm: 'repeat(2, minmax(0, 1fr))' } }}>
           <Field label="Station" required error={fieldError('station')}>
-            <SuggestInput suggestions={STATIONS} value={values.station} onChange={set('station')} invalid={!!fieldError('station')} />
+            <SuggestInput suggestions={stations} value={values.station} onChange={set('station')} invalid={!!fieldError('station')} />
           </Field>
           <Field label="Date & time on receipt" required error={fieldError('transactedAt')}>
             <Input type="datetime-local" max={toInputDateTime(new Date())} value={values.transactedAt} onChange={set('transactedAt')} />

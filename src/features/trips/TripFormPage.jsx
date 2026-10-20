@@ -11,7 +11,7 @@ import { Field, FormSection, Input, Textarea, SuggestInput } from '@/components/
 import { Combobox } from '@/components/ui/Combobox'
 import { ErrorState, PageSpinner, InlineAlert } from '@/components/ui/Feedback'
 import { toInputDateTime } from '@/utils/format'
-import { LOCATIONS, TRIP_PURPOSES } from '@/api/mock/data'
+import { useSuggestions } from '@/app/ReferenceProvider'
 
 const schema = z.object({
   vehicleId: z.coerce.number().int().positive('Choose a vehicle'),
@@ -35,6 +35,8 @@ const schema = z.object({
 })
 
 export default function TripFormPage() {
+  const purposes = useSuggestions('tripPurpose')
+  const locations = useSuggestions('location')
   const { id } = useParams()
   const [search] = useSearchParams()
   const isEdit = Boolean(id)
@@ -209,16 +211,16 @@ export default function TripFormPage() {
       </FormSection>
       <FormSection title="Journey">
         <Field label="Start location" htmlFor="startLocation" required error={err('startLocation')}>
-          <SuggestInput id="startLocation" suggestions={LOCATIONS} {...register('startLocation')} invalid={!!errors.startLocation} />
+          <SuggestInput id="startLocation" suggestions={locations} {...register('startLocation')} invalid={!!errors.startLocation} />
         </Field>
         <Field label="Destination" htmlFor="destination" required error={err('destination')}>
-          <SuggestInput id="destination" suggestions={LOCATIONS} {...register('destination')} invalid={!!errors.destination} />
+          <SuggestInput id="destination" suggestions={locations} {...register('destination')} invalid={!!errors.destination} />
         </Field>
         <Field label="Scheduled start" htmlFor="scheduledStartAt" required error={err('scheduledStartAt')}>
           <Input id="scheduledStartAt" type="datetime-local" {...register('scheduledStartAt')} invalid={!!errors.scheduledStartAt} />
         </Field>
         <Field label="Purpose" htmlFor="purpose" required error={err('purpose')}>
-          <SuggestInput id="purpose" suggestions={TRIP_PURPOSES} {...register('purpose')} invalid={!!errors.purpose} />
+          <SuggestInput id="purpose" suggestions={purposes} {...register('purpose')} invalid={!!errors.purpose} />
         </Field>
         <Field
           label="Passengers"

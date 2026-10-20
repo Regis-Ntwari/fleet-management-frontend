@@ -40,7 +40,7 @@ const schema = z
     licenseCategory: z.string().trim().min(1, 'Licence category is required'),
     licenseIssueDate: z.string().min(1, 'Issue date is required'),
     licenseExpiry: z.string().min(1, 'Expiry date is required'),
-    employmentStatus: z.enum(['FULL_TIME', 'CONTRACT', 'CASUAL']),
+    employmentStatus: z.string().min(1, 'Choose an employment status'),
     joiningDate: z.string().min(1, 'Joining date is required'),
     status: z.string().min(1, 'Choose a status'),
     emergencyContactName: optionalText,
@@ -72,6 +72,7 @@ export default function DriverFormPage() {
   const isEdit = Boolean(id)
   const navigate = useNavigate()
   const statuses = useOptions('driver')
+  const employmentStatuses = useOptions('employmentStatus')
   const existing = useQuery({ queryKey: ['drivers', 'detail', id], queryFn: () => http.get(`/drivers/${id}`), enabled: isEdit })
   const [serverError, setServerError] = useState(null)
   const {
@@ -159,10 +160,12 @@ export default function DriverFormPage() {
       </FormSection>
       <FormSection title="Employment">
         <Field label="Employment status" htmlFor="employmentStatus" required error={err('employmentStatus')}>
-          <Select id="employmentStatus" {...register('employmentStatus')}>
-            <option value="FULL_TIME">Full time</option>
-            <option value="CONTRACT">Contract</option>
-            <option value="CASUAL">Casual</option>
+          <Select id="employmentStatus" {...register('employmentStatus')} invalid={!!errors.employmentStatus}>
+            {employmentStatuses.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
           </Select>
         </Field>
         <Field label="Joining date" htmlFor="joiningDate" required error={err('joiningDate')}>

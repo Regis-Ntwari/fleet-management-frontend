@@ -6,6 +6,7 @@ import {
   currentAssignmentOf,
   diff,
   driverNameOf,
+  isLookupValue,
   recordAudit,
   toAssignment,
   toDocument,
@@ -17,7 +18,6 @@ import {
   toVehicle,
   toVehicleSummary,
 } from '../mappers'
-import { REFERENCE } from './reference'
 
 const audit = (user, action, row, changes = null) =>
   recordAudit({
@@ -56,10 +56,9 @@ function validateVehicle(input, existingId = null) {
     errors.push({ field: 'year', message: 'Enter a valid year.' })
   if (!d.categories.some((c) => c.id === Number(input.categoryId)))
     errors.push({ field: 'categoryId', message: 'Choose a vehicle category.' })
-  if (!REFERENCE.fuelTypes.some((f) => f.value === input.fuelType)) errors.push({ field: 'fuelType', message: 'Choose a fuel type.' })
-  if (!REFERENCE.transmissions.some((t) => t.value === input.transmission))
-    errors.push({ field: 'transmission', message: 'Choose a transmission.' })
-  if (!REFERENCE.vehicleStatuses.some((s) => s.value === input.status)) errors.push({ field: 'status', message: 'Choose a status.' })
+  if (!isLookupValue('fuelTypes', input.fuelType)) errors.push({ field: 'fuelType', message: 'Choose a fuel type.' })
+  if (!isLookupValue('transmissions', input.transmission)) errors.push({ field: 'transmission', message: 'Choose a transmission.' })
+  if (!isLookupValue('vehicleStatuses', input.status)) errors.push({ field: 'status', message: 'Choose a status.' })
   const odo = Number(input.odometerKm)
   if (!Number.isFinite(odo) || odo < 0 || odo > 3_000_000)
     errors.push({ field: 'odometerKm', message: 'Enter a realistic odometer value.' })
@@ -195,7 +194,7 @@ patch(
   ({ params, body, user }) => {
     const row = findVehicle(params.id)
     const { status, reason } = body ?? {}
-    if (!REFERENCE.vehicleStatuses.some((s) => s.value === status)) throw badRequest('Choose a valid status.')
+    if (!isLookupValue('vehicleStatuses', status)) throw badRequest('Choose a valid status.')
     if (row.status === 'ON_TRIP' && status !== 'ON_TRIP')
       throw businessRule('This vehicle is on a trip. Complete or cancel the trip first.')
     if (status === 'AVAILABLE' && currentAssignmentOf(row.id))

@@ -25,7 +25,7 @@ import { DataTable } from '@/components/ui/DataTable'
 import { ErrorState, NotFoundInline, Skeleton, InlineAlert, LinkText } from '@/components/ui/Feedback'
 import { Stat, StatGrid } from '@/components/ui/Stat'
 import { formatCurrency, formatDateTime, formatKm, formatNumber } from '@/utils/format'
-import { TECHNICIANS } from '@/api/mock/data'
+import { useSuggestions } from '@/app/ReferenceProvider'
 
 const STEPS = ['REPORTED', 'INSPECTION', 'APPROVED', 'IN_PROGRESS', 'COMPLETED']
 
@@ -260,6 +260,7 @@ const COPY = {
 }
 
 function StatusDialog({ job, status, onClose }) {
+  const technicians = useSuggestions('technician')
   const [note, setNote] = useState('')
   const [technician, setTechnician] = useState(job.technicianName ?? '')
   const [service, setService] = useState(job.servicePerformed ?? '')
@@ -306,7 +307,7 @@ function StatusDialog({ job, status, onClose }) {
         ) : null}
         {status === 'IN_PROGRESS' ? (
           <Field label="Technician" required error={error?.fieldErrorMap?.technicianName}>
-            <SuggestInput suggestions={TECHNICIANS} value={technician} onChange={(e) => setTechnician(e.target.value)} autoFocus />
+            <SuggestInput suggestions={technicians} value={technician} onChange={(e) => setTechnician(e.target.value)} autoFocus />
           </Field>
         ) : null}
         {status === 'COMPLETED' ? (

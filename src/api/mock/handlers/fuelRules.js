@@ -1,7 +1,6 @@
 import { getDb } from '../db'
 import { badRequest, businessRule, conflict, notFound } from '../core'
-import { recordAudit } from '../mappers'
-import { REFERENCE } from './reference'
+import { isLookupValue, recordAudit } from '../mappers'
 
 /**
  * Validation shared by direct fuel entry (officer records a fill) and the allocation workflow
@@ -34,7 +33,7 @@ export function validateFuel(input, existingId = null) {
   if (!input.transactedAt) errors.push({ field: 'transactedAt', message: 'Date and time are required.' })
   else if (new Date(input.transactedAt) > new Date(Date.now() + 5 * 60000))
     errors.push({ field: 'transactedAt', message: 'Cannot be in the future.' })
-  if (!REFERENCE.fuelTypes.some((f) => f.value === input.fuelType)) errors.push({ field: 'fuelType', message: 'Choose a fuel type.' })
+  if (!isLookupValue('fuelTypes', input.fuelType)) errors.push({ field: 'fuelType', message: 'Choose a fuel type.' })
   const litres = Number(input.litres)
   if (!Number.isFinite(litres) || litres <= 0) errors.push({ field: 'litres', message: 'Litres must be greater than zero.' })
   else if (litres > 1000) errors.push({ field: 'litres', message: 'More than 1,000 L in one fill is not plausible.' })

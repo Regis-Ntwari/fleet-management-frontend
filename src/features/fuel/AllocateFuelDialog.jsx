@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/Button'
 import { Combobox } from '@/components/ui/Combobox'
 import { Field, Input, SuggestInput, Textarea } from '@/components/ui/Field'
 import { InlineAlert } from '@/components/ui/Feedback'
-import { STATIONS } from '@/api/mock/data'
 import { toInputDateTime } from '@/utils/format'
+import { useSuggestions } from '@/app/ReferenceProvider'
 
 const initialValues = (a, vehicleId) => ({
   vehicleId: a?.vehicleId ?? vehicleId ?? '',
@@ -32,6 +32,7 @@ export function AllocateFuelDialog({ open, onClose, allocation, defaultVehicleId
 }
 
 function AllocateFuelForm({ onClose, allocation, defaultVehicleId, onSaved }) {
+  const stations = useSuggestions('fuelStation')
   const isEdit = Boolean(allocation)
   const vehicles = useVehicleOptions()
   const drivers = useDriverOptions()
@@ -135,7 +136,7 @@ function AllocateFuelForm({ onClose, allocation, defaultVehicleId, onSaved }) {
             />
           </Field>
           <Field label="Station" error={fieldError('station')} hint="Optional. Leave empty to let the driver choose.">
-            <SuggestInput suggestions={STATIONS} value={values.station} onChange={set('station')} />
+            <SuggestInput suggestions={stations} value={values.station} onChange={set('station')} />
           </Field>
           <Field label="Fill up by" error={fieldError('dueAt')} hint="Optional deadline.">
             <Input type="datetime-local" value={values.dueAt} onChange={set('dueAt')} invalid={!!fieldError('dueAt')} />

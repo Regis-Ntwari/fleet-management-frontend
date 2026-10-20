@@ -9,7 +9,7 @@ import Stack from '@mui/material/Stack'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import { http } from '@/api/client'
-import { useOptions } from '@/app/ReferenceProvider'
+import { useOptions, useSuggestions } from '@/app/ReferenceProvider'
 import { useApiMutation, useVehicleOptions } from '@/features/common/hooks'
 import { FormPage } from '@/features/common/FormPage'
 import { Field, FormSection, Input, Select, Textarea, SuggestInput } from '@/components/ui/Field'
@@ -17,7 +17,6 @@ import { Combobox } from '@/components/ui/Combobox'
 import { Button, IconButton } from '@/components/ui/Button'
 import { ErrorState, PageSpinner } from '@/components/ui/Feedback'
 import { formatCurrency, formatKm, toInputDateTime } from '@/utils/format'
-import { TECHNICIANS, WORKSHOPS } from '@/api/mock/data'
 
 const schema = z.object({
   vehicleId: z.coerce.number().int().positive('Choose a vehicle'),
@@ -60,6 +59,8 @@ const schema = z.object({
 })
 
 export default function MaintenanceFormPage() {
+  const technicians = useSuggestions('technician')
+  const workshops = useSuggestions('workshop')
   const { id } = useParams()
   const [search] = useSearchParams()
   const isEdit = Boolean(id)
@@ -84,7 +85,7 @@ export default function MaintenanceFormPage() {
       vehicleId: search.get('vehicleId') ?? '',
       complaint: '',
       type: 'CORRECTIVE',
-      workshop: WORKSHOPS[0],
+      workshop: '',
       technicianName: '',
       expectedCompletionAt: '',
       odometerKm: '',
@@ -222,10 +223,10 @@ export default function MaintenanceFormPage() {
           />
         </Field>
         <Field label="Workshop" htmlFor="workshop" required error={err('workshop')}>
-          <SuggestInput id="workshop" suggestions={WORKSHOPS} {...register('workshop')} invalid={!!errors.workshop} />
+          <SuggestInput id="workshop" suggestions={workshops} {...register('workshop')} invalid={!!errors.workshop} />
         </Field>
         <Field label="Technician" htmlFor="technicianName" error={err('technicianName')} hint="Required before work can start.">
-          <SuggestInput id="technicianName" suggestions={TECHNICIANS} {...register('technicianName')} />
+          <SuggestInput id="technicianName" suggestions={technicians} {...register('technicianName')} />
         </Field>
         <Field
           label="Odometer"

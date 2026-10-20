@@ -8,6 +8,7 @@ import { config } from '@/config/env'
 
 // Registering the handler modules populates the router.
 import './handlers/reference'
+import './handlers/lookups'
 import './handlers/roles'
 import './handlers/departments'
 import './handlers/users'

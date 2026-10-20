@@ -31,6 +31,16 @@ export function toDepartment(d) {
     openIncidentCount: db().incidents.filter((i) => i.departmentId === d.id && ['OPEN', 'UNDER_INVESTIGATION'].includes(i.status)).length,
   }
 }
+// ---------- Reference lists (lookups) ----------
+/** Items of a reference list in display order: [{ value, label, tone }]. Inactive items are kept unless `activeOnly`. */
+export const lookupItems = (list, { activeOnly = false } = {}) =>
+  db()
+    .lookups.filter((r) => r.list === list && (!activeOnly || r.active))
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((r) => ({ value: r.value, label: r.label, tone: r.tone ?? 'neutral' }))
+/** Validation accepts any known value, active or not, so old records can still be edited after a value is retired. */
+export const isLookupValue = (list, value) => db().lookups.some((r) => r.list === list && r.value === value)
+export const lookupLabel = (list, value) => db().lookups.find((r) => r.list === list && r.value === value)?.label ?? value
 /** True when the user's role carries the permission (or any of the listed permissions). */
 export function userCan(u, permission) {
   const list = Array.isArray(permission) ? permission : [permission]

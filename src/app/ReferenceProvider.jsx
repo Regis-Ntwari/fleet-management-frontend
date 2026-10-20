@@ -22,8 +22,16 @@ const EMPTY = {
   fuelTypes: [],
   fuelRequestStatuses: [],
   transmissions: [],
+  employmentStatuses: [],
   roles: [],
   serviceTypes: [],
+  locations: [],
+  tripPurposes: [],
+  assignmentPurposes: [],
+  fuelStations: [],
+  workshops: [],
+  technicians: [],
+  serviceTasks: [],
   vehicleCategories: [],
 }
 
@@ -66,8 +74,16 @@ const KIND_MAP = {
   fuelType: 'fuelTypes',
   fuelRequest: 'fuelRequestStatuses',
   transmission: 'transmissions',
+  employmentStatus: 'employmentStatuses',
   role: 'roles',
   serviceType: 'serviceTypes',
+  location: 'locations',
+  tripPurpose: 'tripPurposes',
+  assignmentPurpose: 'assignmentPurposes',
+  fuelStation: 'fuelStations',
+  workshop: 'workshops',
+  technician: 'technicians',
+  serviceTask: 'serviceTasks',
 }
 
 export function useStatusMeta(kind, value) {
@@ -80,6 +96,13 @@ export function useStatusMeta(kind, value) {
 export function useOptions(kind) {
   const { data } = useReference()
   return data[KIND_MAP[kind] ?? kind] ?? []
+}
+
+/** Labels of a suggestion list for free-text fields, e.g. useSuggestions('fuelStation') → ['SP Kacyiru', …] */
+export function useSuggestions(kind) {
+  const { data } = useReference()
+  const list = data[KIND_MAP[kind] ?? kind] ?? []
+  return useMemo(() => list.map((s) => s.label), [list])
 }
 
 export function useCategoryOptions() {

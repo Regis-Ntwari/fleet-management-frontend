@@ -5,13 +5,12 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { http } from '@/api/client'
-import { useCategoryOptions, useOptions } from '@/app/ReferenceProvider'
+import { useCategoryOptions, useOptions, useSuggestions } from '@/app/ReferenceProvider'
 import { useApiMutation } from '@/features/common/hooks'
 import { FormPage } from '@/features/common/FormPage'
 import { Field, FormSection, Input, Select, Textarea, SuggestInput } from '@/components/ui/Field'
 import { ErrorState, PageSpinner } from '@/components/ui/Feedback'
 import { toInputDateTime } from '@/utils/format'
-import { LOCATIONS } from '@/api/mock/data'
 
 const schema = z
   .object({
@@ -49,6 +48,7 @@ const schema = z
   .refine((v) => new Date(v.returnAt) > new Date(v.pickupAt), { path: ['returnAt'], message: 'Return must be after pickup' })
 
 export default function BookingFormPage() {
+  const locations = useSuggestions('location')
   const { id } = useParams()
   const isEdit = Boolean(id)
   const navigate = useNavigate()
@@ -197,10 +197,10 @@ export default function BookingFormPage() {
       </FormSection>
       <FormSection title="Itinerary">
         <Field label="Pickup location" htmlFor="pickupLocation" required error={err('pickupLocation')}>
-          <SuggestInput id="pickupLocation" suggestions={LOCATIONS} {...register('pickupLocation')} invalid={!!errors.pickupLocation} />
+          <SuggestInput id="pickupLocation" suggestions={locations} {...register('pickupLocation')} invalid={!!errors.pickupLocation} />
         </Field>
         <Field label="Drop-off location" htmlFor="dropoffLocation" required error={err('dropoffLocation')}>
-          <SuggestInput id="dropoffLocation" suggestions={LOCATIONS} {...register('dropoffLocation')} invalid={!!errors.dropoffLocation} />
+          <SuggestInput id="dropoffLocation" suggestions={locations} {...register('dropoffLocation')} invalid={!!errors.dropoffLocation} />
         </Field>
         <Field label="Pickup" htmlFor="pickupAt" required error={err('pickupAt')}>
           <Input id="pickupAt" type="datetime-local" {...register('pickupAt')} invalid={!!errors.pickupAt} />
