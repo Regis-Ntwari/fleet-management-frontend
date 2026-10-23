@@ -51,7 +51,12 @@ export function Field({ label, hint, error, required, sx, children, htmlFor, inl
     <Box
       sx={[
         { display: 'flex', flexDirection: 'column', gap: 0.75, minWidth: 0 },
-        inline && { display: { sm: 'grid' }, gridTemplateColumns: { sm: '180px 1fr' }, alignItems: { sm: 'start' }, columnGap: { sm: 2 } },
+        inline && {
+          display: { sm: 'grid' },
+          gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: '180px 1fr' },
+          alignItems: { sm: 'start' },
+          columnGap: { sm: 2 },
+        },
         span && { gridColumn: { sm: '1 / -1' } },
         ...toArray(sx),
       ]}
@@ -314,7 +319,7 @@ export function FormSection({ title, description, children, sx }) {
     <Box
       component="section"
       aria-labelledby={id}
-      sx={[{ display: 'grid', gap: 2.5, gridTemplateColumns: { lg: '260px minmax(0, 1fr)' } }, ...toArray(sx)]}
+      sx={[{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: '260px minmax(0, 1fr)' } }, ...toArray(sx)]}
     >
       <Box>
         <Typography id={id} component="h3" variant="h3">

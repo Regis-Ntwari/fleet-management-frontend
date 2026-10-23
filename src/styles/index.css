@@ -146,7 +146,8 @@ kbd,
     background: #fff !important;
     min-height: 0 !important;
   }
-  .report-print-toolbar {
+  .report-print-toolbar,
+  .bottom-nav {
     display: none !important;
   }
   .report-print-page > div {

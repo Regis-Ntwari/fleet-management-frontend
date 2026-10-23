@@ -136,7 +136,7 @@ export function DocumentFormDialog({ open, onClose, document, ownerType: fixedOw
           </InlineAlert>
         ) : null}
         {!fixedOwnerId && !isEdit ? (
-          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { sm: '140px 1fr' } }}>
+          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: '140px 1fr' } }}>
             <Field label="Owner" required error={errors.ownerType?.message}>
               <Select
                 {...register('ownerType')}
@@ -160,7 +160,7 @@ export function DocumentFormDialog({ open, onClose, document, ownerType: fixedOw
             </Field>
           </Box>
         ) : null}
-        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { sm: 'repeat(2, minmax(0, 1fr))' } }}>
+        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' } }}>
           <Field label="Document type" required error={errors.type?.message}>
             <Select {...register('type')} invalid={!!errors.type} placeholder="Choose type" autoFocus>
               {types

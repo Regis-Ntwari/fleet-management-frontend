@@ -1,4 +1,4 @@
-import { differenceInCalendarDays, differenceInMinutes, parseISO } from 'date-fns'
+import { addDays, differenceInCalendarDays, differenceInMinutes, format, parseISO } from 'date-fns'
 import { getDb } from './db'
 const db = () => getDb()
 export const userName = (id) => {
@@ -9,6 +9,10 @@ export const userName = (id) => {
 export const vehicleById = (id) => db().vehicles.find((v) => v.id === id)
 export const driverById = (id) => db().drivers.find((d) => d.id === id)
 export const categoryById = (id) => db().categories.find((c) => c.id === id)
+export const companyById = (id) => (id == null ? undefined : db().companies.find((c) => c.id === id))
+export const companyByCode = (code) => db().companies.find((c) => c.code === code)
+export const tariffById = (id) => (id == null ? undefined : db().tariffs.find((t) => t.id === id))
+export const purchaseOrderById = (id) => (id == null ? undefined : db().purchaseOrders.find((o) => o.id === id))
 export const plateOf = (id) => (id == null ? null : (vehicleById(id)?.plateNumber ?? 'Unknown'))
 export const driverNameOf = (id) => (id == null ? null : (driverById(id)?.fullName ?? 'Unknown'))
 // ---------- Roles, departments, users ----------
@@ -64,10 +68,13 @@ export function toUser(u) {
   const role = roleById(u.roleId)
   const department = departmentById(u.departmentId)
   const driver = driverOfUser(u)
+  const company = companyById(u.companyId)
   return {
     ...rest,
     driverId: driver?.id ?? null,
     driverName: driver?.fullName ?? null,
+    companyId: company?.id ?? null,
+    companyName: company?.name ?? null,
     role: role?.code ?? null,
     roleName: role?.name ?? 'No role',
     departmentName: department?.name ?? null,
@@ -118,6 +125,8 @@ export function toVehicleSummary(v) {
     categoryName: categoryById(v.categoryId)?.name ?? 'Uncategorised',
     status: v.status,
     color: v.color,
+    owner: v.owner ?? 'LIMOZ',
+    ownerName: v.ownerName ?? null,
   }
 }
 export function toVehicle(v) {
@@ -222,19 +231,114 @@ export function toAssignment(a) {
     updatedAt: a.updatedAt,
   }
 }
-// ---------- Trips ----------
-export function toTrip(t) {
+// ---------- Companies, tariffs, purchase orders ----------
+export function toCompany(c) {
+  const d = db()
+  return {
+    ...c,
+    deploymentCount: d.deployments.filter((t) => t.companyId === c.id).length,
+    partCount: d.parts.filter((p) => p.companyId === c.id).length,
+    userCount: d.users.filter((u) => u.companyId === c.id).length,
+  }
+}
+export function toTariff(t) {
+  return { ...t, deploymentCount: db().deployments.filter((x) => x.tariffId === t.id).length }
+}
+/** Planned end of a deployment: scheduled start plus its effective days. */
+export const expectedEndOf = (t) => {
+  const start = parseISO(t.scheduledStartAt)
+  const days = Math.max(1, Number(t.effectiveDays) || 1)
+  return new Date(start.getTime() + days * 86_400_000).toISOString()
+}
+export const deploymentAmountOf = (t) => (t.tariffRate ?? 0) * Math.max(1, Number(t.effectiveDays) || 1)
+export function purchaseOrderStatus(o) {
+  if (o.closedAt) return 'CLOSED'
+  const committed = db()
+    .deployments.filter((t) => t.purchaseOrderId === o.id && !['CANCELLED', 'REPLACED'].includes(t.status))
+    .reduce((sum, t) => sum + deploymentAmountOf(t), 0)
+  const expiresOn = format(addDays(parseISO(o.receivedOn), o.durationDays), 'yyyy-MM-dd')
+  if (committed >= o.amount) return 'EXHAUSTED'
+  if (expiresOn < format(new Date(), 'yyyy-MM-dd')) return 'EXPIRED'
+  return 'OPEN'
+}
+export function toPurchaseOrder(o) {
+  const d = db()
+  const linked = d.deployments.filter((t) => t.purchaseOrderId === o.id)
+  const active = linked.filter((t) => !['CANCELLED', 'REPLACED'].includes(t.status))
+  const committedAmount = active.reduce((sum, t) => sum + deploymentAmountOf(t), 0)
+  const committedDays = active.reduce((sum, t) => sum + Math.max(1, Number(t.effectiveDays) || 1), 0)
+  const expiresOn = format(addDays(parseISO(o.receivedOn), o.durationDays), 'yyyy-MM-dd')
+  return {
+    id: o.id,
+    lpoNumber: o.lpoNumber,
+    institution: o.institution,
+    accountManagerId: o.accountManagerId,
+    accountManagerName: userName(o.accountManagerId),
+    receivedOn: o.receivedOn,
+    durationDays: o.durationDays,
+    expiresOn,
+    description: o.description,
+    amount: o.amount,
+    originalAmount: o.originalAmount ?? o.amount,
+    currency: o.currency ?? 'RWF',
+    committedAmount,
+    remainingAmount: o.amount - committedAmount,
+    committedDays,
+    deploymentCount: active.length,
+    status: purchaseOrderStatus(o),
+    notes: o.notes ?? null,
+    closedAt: o.closedAt ?? null,
+    createdAt: o.createdAt,
+    updatedAt: o.updatedAt,
+  }
+}
+// ---------- Deployments ----------
+export function toDeployment(t) {
   const booking = t.bookingId ? db().bookings.find((b) => b.id === t.bookingId) : null
   const distance = t.startOdometer != null && t.endOdometer != null ? t.endOdometer - t.startOdometer : null
   const duration = t.startedAt && t.endedAt ? differenceInMinutes(parseISO(t.endedAt), parseISO(t.startedAt)) : null
+  const company = companyById(t.companyId)
+  const tariff = tariffById(t.tariffId)
+  const lpo = purchaseOrderById(t.purchaseOrderId)
+  const replacedBy = t.replacedById ? db().deployments.find((x) => x.id === t.replacedById) : null
+  const replaces = t.replacesId ? db().deployments.find((x) => x.id === t.replacesId) : null
+  const effectiveDays = Math.max(1, Number(t.effectiveDays) || 1)
   return {
     id: t.id,
-    tripNumber: t.tripNumber,
+    deploymentNumber: t.deploymentNumber,
+    companyId: t.companyId ?? null,
+    companyName: company?.name ?? null,
+    companyCode: company?.code ?? null,
+    series: t.owner === 'SUBCONTRACTOR' ? 2 : 1,
     vehicleId: t.vehicleId,
     vehiclePlate: plateOf(t.vehicleId) ?? '',
     driverId: t.driverId,
     driverName: driverNameOf(t.driverId) ?? '',
-    customerName: t.customerName,
+    institution: t.institution ?? null,
+    purchaseOrderId: t.purchaseOrderId ?? null,
+    lpoNumber: lpo?.lpoNumber ?? null,
+    lpoDate: lpo?.receivedOn ?? null,
+    lpoAmount: lpo?.amount ?? null,
+    lpoCurrency: lpo?.currency ?? 'RWF',
+    effectiveDays,
+    scheduledEndAt: expectedEndOf({ ...t, effectiveDays }),
+    tariffId: t.tariffId ?? null,
+    tariffCode: tariff?.code ?? null,
+    tariffName: tariff?.name ?? null,
+    tariffRate: t.tariffRate ?? tariff?.dailyRate ?? null,
+    amount: deploymentAmountOf({ ...t, effectiveDays }),
+    owner: t.owner ?? 'LIMOZ',
+    ownerName: t.ownerName ?? null,
+    ownerAmount: t.ownerAmount ?? null,
+    driverMission: t.driverMission ?? null,
+    replacedById: t.replacedById ?? null,
+    replacedByNumber: replacedBy?.deploymentNumber ?? null,
+    replacesId: t.replacesId ?? null,
+    replacesNumber: replaces?.deploymentNumber ?? null,
+    replaceReason: t.replaceReason ?? null,
+    departureRecordedBy: t.departureRecordedBy ?? null,
+    returnRecordedBy: t.returnRecordedBy ?? null,
+    roadMapCount: db().roadMaps.filter((r) => r.deploymentId === t.id).length,
     bookingId: t.bookingId,
     bookingNumber: booking?.bookingNumber ?? null,
     startLocation: t.startLocation,
@@ -391,6 +495,28 @@ export function expectedL100(categoryId) {
   return code ? (base[code] ?? null) : null
 }
 // ---------- Maintenance ----------
+// ---------- Spare parts & stock ----------
+export function toPart(p) {
+  const company = companyById(p.companyId)
+  return {
+    ...p,
+    companyName: company?.name ?? null,
+    companyCode: company?.code ?? null,
+    lowStock: p.currentStock < p.minimumStock,
+    stockValue: p.currentStock * p.unitCost,
+  }
+}
+export function toStockMovement(m) {
+  const part = db().parts.find((p) => p.id === m.partId)
+  return {
+    ...m,
+    partNumber: part?.partNumber ?? '—',
+    partName: part?.name ?? 'Unknown part',
+    unit: part?.unit ?? 'pcs',
+    companyName: companyById(m.companyId)?.name ?? null,
+    counterpartCompanyName: companyById(m.counterpartCompanyId)?.name ?? null,
+  }
+}
 export function toMaintenance(m) {
   const parts = m.parts.map((p) => {
     const part = db().parts.find((x) => x.id === p.partId)

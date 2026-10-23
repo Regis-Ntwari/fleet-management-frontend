@@ -3,6 +3,7 @@ import { get, post, put, patch, del } from '../router'
 import { getDb, nextId, persist } from '../db'
 import { badRequest, businessRule, conflict, forbidden, inDateRange, matchesText, notFound, paginate } from '../core'
 import {
+  companyByCode,
   currentAssignmentOf,
   currentAssignmentOfDriver,
   diff,
@@ -16,6 +17,7 @@ import {
   userCan,
   userIdsWithPermission,
 } from '../mappers'
+import { recordMovement } from './stock'
 
 const auditM = (user, action, row, changes = null) =>
   recordAudit({
@@ -49,8 +51,13 @@ function validate(input) {
   for (const k of ['laborCost', 'otherCost'])
     if (input[k] != null && input[k] !== '' && Number(input[k]) < 0) errors.push({ field: k, message: 'Cannot be negative.' })
   if (Array.isArray(input.parts)) {
+    // Parts come from the stock of the company that owns the vehicle; subcontracted vehicles may use any.
+    const ownerCompany = vehicle ? companyByCode(vehicle.owner) : null
     input.parts.forEach((p, i) => {
-      if (!d.parts.some((x) => x.id === Number(p.partId))) errors.push({ field: `parts.${i}.partId`, message: 'Unknown part.' })
+      const part = d.parts.find((x) => x.id === Number(p.partId))
+      if (!part) errors.push({ field: `parts.${i}.partId`, message: 'Unknown part.' })
+      else if (ownerCompany && part.companyId !== ownerCompany.id)
+        errors.push({ field: `parts.${i}.partId`, message: `Use a part from ${ownerCompany.name}’s stock.` })
       if (!Number.isInteger(Number(p.quantity)) || Number(p.quantity) < 1)
         errors.push({ field: `parts.${i}.quantity`, message: 'Quantity must be at least 1.' })
     })
@@ -187,7 +194,7 @@ post(
     } else {
       const driver = driverOfUser(user)
       if (!driver) throw forbidden('Your account is not linked to a driver profile.')
-      const onTrip = d.trips.find((t) => t.driverId === driver.id && t.status === 'IN_PROGRESS')
+      const onTrip = d.deployments.find((t) => t.driverId === driver.id && t.status === 'IN_PROGRESS')
       const assignment = currentAssignmentOfDriver(driver.id)
       const allowed = [onTrip?.vehicleId, assignment?.vehicleId].filter((x) => x != null)
       if (!allowed.length) throw businessRule('You have no vehicle assigned right now, so there is nothing to report.')
@@ -335,10 +342,8 @@ patch(
         }
         for (const p of row.parts) {
           const part = d.parts.find((x) => x.id === p.partId)
-          if (part) {
-            part.currentStock -= p.quantity
-            part.updatedAt = now
-          }
+          if (part)
+            recordMovement(part, { type: 'ISSUE', quantity: -p.quantity, reference: row.maintenanceNumber, note: row.complaint }, user, now)
         }
       }
       if (['AVAILABLE', 'ASSIGNED', 'RESERVED'].includes(vehicle.status)) {
@@ -381,7 +386,13 @@ patch(
       if (from === 'IN_PROGRESS')
         for (const p of row.parts) {
           const part = d.parts.find((x) => x.id === p.partId)
-          if (part) part.currentStock += p.quantity
+          if (part)
+            recordMovement(
+              part,
+              { type: 'RETURN', quantity: p.quantity, reference: row.maintenanceNumber, note: 'Work order cancelled' },
+              user,
+              now,
+            )
         }
       if (
         vehicle.status === 'IN_MAINTENANCE' &&
@@ -497,132 +508,4 @@ del(
     return null
   },
   { permission: 'MAINTENANCE_MANAGE' },
-)
-
-// ---------- Spare parts ----------
-
-get(
-  '/spare-parts',
-  ({ query }) => {
-    const list = getDb()
-      .parts.filter((p) => matchesText([p.partNumber, p.name, p.category, p.supplier], query.q))
-      .filter((p) => !query.category || p.category === query.category)
-      .filter((p) => query.lowStock !== 'true' || p.currentStock < p.minimumStock)
-      .map((p) => ({ ...p, lowStock: p.currentStock < p.minimumStock, stockValue: p.currentStock * p.unitCost }))
-    return paginate(list, query, 'name,asc')
-  },
-  { permission: 'MAINTENANCE_READ' },
-)
-
-get('/spare-parts/categories', () => Array.from(new Set(getDb().parts.map((p) => p.category))).sort(), { permission: 'MAINTENANCE_READ' })
-
-function validatePart(input, existingId = null) {
-  const errors = []
-  if (!input.partNumber?.trim()) errors.push({ field: 'partNumber', message: 'Part number is required.' })
-  else if (getDb().parts.some((p) => p.id !== existingId && p.partNumber.toLowerCase() === input.partNumber.trim().toLowerCase()))
-    throw conflict(`Part number ${input.partNumber.trim()} already exists.`)
-  if (!input.name?.trim()) errors.push({ field: 'name', message: 'Name is required.' })
-  if (!input.category?.trim()) errors.push({ field: 'category', message: 'Category is required.' })
-  if (!input.supplier?.trim()) errors.push({ field: 'supplier', message: 'Supplier is required.' })
-  if (!(Number(input.unitCost) >= 0)) errors.push({ field: 'unitCost', message: 'Unit cost cannot be negative.' })
-  if (!Number.isInteger(Number(input.minimumStock)) || Number(input.minimumStock) < 0)
-    errors.push({ field: 'minimumStock', message: 'Whole number, zero or more.' })
-  if (!Number.isInteger(Number(input.currentStock)) || Number(input.currentStock) < 0)
-    errors.push({ field: 'currentStock', message: 'Whole number, zero or more.' })
-  if (errors.length) throw badRequest('Please correct the highlighted fields.', errors)
-}
-
-post(
-  '/spare-parts',
-  ({ body, user }) => {
-    validatePart(body)
-    const now = new Date().toISOString()
-    const row = {
-      id: nextId('part'),
-      partNumber: body.partNumber.trim().toUpperCase(),
-      name: body.name.trim(),
-      category: body.category.trim(),
-      unitCost: Number(body.unitCost),
-      supplier: body.supplier.trim(),
-      minimumStock: Number(body.minimumStock),
-      currentStock: Number(body.currentStock),
-      createdAt: now,
-      updatedAt: now,
-    }
-    getDb().parts.push(row)
-    recordAudit({
-      userId: user.id,
-      userName: `${user.firstName} ${user.lastName}`,
-      action: 'CREATE',
-      entityType: 'SPARE_PART',
-      entityId: row.id,
-      entityLabel: row.partNumber,
-      changes: null,
-    })
-    persist()
-    return { ...row, lowStock: row.currentStock < row.minimumStock, stockValue: row.currentStock * row.unitCost }
-  },
-  { permission: 'PARTS_MANAGE' },
-)
-
-put(
-  '/spare-parts/:id',
-  ({ params, body, user }) => {
-    const row = getDb().parts.find((p) => p.id === Number(params.id))
-    if (!row) throw notFound('Spare part')
-    validatePart(body, row.id)
-    const before = { ...row }
-    Object.assign(row, {
-      partNumber: body.partNumber.trim().toUpperCase(),
-      name: body.name.trim(),
-      category: body.category.trim(),
-      unitCost: Number(body.unitCost),
-      supplier: body.supplier.trim(),
-      minimumStock: Number(body.minimumStock),
-      currentStock: Number(body.currentStock),
-      updatedAt: new Date().toISOString(),
-    })
-    recordAudit({
-      userId: user.id,
-      userName: `${user.firstName} ${user.lastName}`,
-      action: 'UPDATE',
-      entityType: 'SPARE_PART',
-      entityId: row.id,
-      entityLabel: row.partNumber,
-      changes: diff(before, row),
-    })
-    persist()
-    return { ...row, lowStock: row.currentStock < row.minimumStock, stockValue: row.currentStock * row.unitCost }
-  },
-  { permission: 'PARTS_MANAGE' },
-)
-
-patch(
-  '/spare-parts/:id/stock',
-  ({ params, body, user }) => {
-    const row = getDb().parts.find((p) => p.id === Number(params.id))
-    if (!row) throw notFound('Spare part')
-    const delta = Number(body?.delta)
-    if (!Number.isInteger(delta) || delta === 0)
-      throw badRequest('Enter a non-zero whole number.', [{ field: 'delta', message: 'Required.' }])
-    if (row.currentStock + delta < 0) throw businessRule(`Stock cannot go below zero (currently ${row.currentStock}).`)
-    const from = row.currentStock
-    row.currentStock += delta
-    row.updatedAt = new Date().toISOString()
-    recordAudit({
-      userId: user.id,
-      userName: `${user.firstName} ${user.lastName}`,
-      action: 'UPDATE',
-      entityType: 'SPARE_PART',
-      entityId: row.id,
-      entityLabel: row.partNumber,
-      changes: [
-        { field: 'currentStock', from, to: row.currentStock },
-        ...(body?.reason ? [{ field: 'reason', from: null, to: body.reason }] : []),
-      ],
-    })
-    persist()
-    return { ...row, lowStock: row.currentStock < row.minimumStock, stockValue: row.currentStock * row.unitCost }
-  },
-  { permission: 'PARTS_MANAGE' },
 )

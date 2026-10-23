@@ -245,7 +245,7 @@ function RoleDialog({ onClose, role, groups }) {
     >
       <Box component="form" onSubmit={onSubmit} noValidate sx={{ display: 'grid', gap: 2 }}>
         {error ? <InlineAlert tone="danger">{error.message}</InlineAlert> : null}
-        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { sm: 'minmax(0, 1fr) minmax(0, 2fr)' } }}>
+        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'minmax(0, 1fr) minmax(0, 2fr)' } }}>
           <Field label="Name" required error={errors.name?.message} hint={isEdit ? `Code ${role.code} stays the same.` : undefined}>
             <Input {...register('name', { required: 'Required' })} autoFocus invalid={!!errors.name} />
           </Field>
@@ -274,7 +274,7 @@ function RoleDialog({ onClose, role, groups }) {
               {errors.permissions.message}
             </InlineAlert>
           ) : null}
-          <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { md: 'repeat(2, minmax(0, 1fr))' } }}>
+          <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' } }}>
             {groups.map((g) => {
               const codes = g.permissions.map((p) => p.code)
               const on = codes.filter((c) => locked || selected.has(c)).length

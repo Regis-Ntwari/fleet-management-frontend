@@ -96,7 +96,7 @@ function AllocateFuelForm({ onClose, allocation, defaultVehicleId, onSaved }) {
             {error.message}
           </InlineAlert>
         ) : null}
-        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { sm: 'repeat(2, minmax(0, 1fr))' } }}>
+        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' } }}>
           <Field label="Vehicle" required error={fieldError('vehicleId')}>
             <Combobox
               options={vehicles.options}

@@ -22,13 +22,35 @@ export const REFERENCE = {
     s('SUSPENDED', 'Suspended', 'danger'),
     s('INACTIVE', 'Inactive', 'neutral'),
   ],
-  tripStatuses: [
+  deploymentStatuses: [
     s('PLANNED', 'Planned', 'neutral'),
     s('DISPATCHED', 'Dispatched', 'info'),
-    s('IN_PROGRESS', 'In progress', 'accent'),
-    s('COMPLETED', 'Completed', 'success'),
+    s('IN_PROGRESS', 'Not returned', 'accent'),
+    s('COMPLETED', 'Returned', 'success'),
     s('CANCELLED', 'Cancelled', 'danger'),
+    s('REPLACED', 'Replaced', 'warning'),
   ],
+  purchaseOrderStatuses: [
+    s('OPEN', 'Open', 'success'),
+    s('EXHAUSTED', 'Exhausted', 'warning'),
+    s('EXPIRED', 'Expired', 'danger'),
+    s('CLOSED', 'Closed', 'neutral'),
+  ],
+  stockMovementTypes: [
+    s('RECEIPT', 'Receipt', 'success'),
+    s('ISSUE', 'Issue', 'info'),
+    s('RETURN', 'Return', 'neutral'),
+    s('TRANSFER_OUT', 'Transfer out', 'warning'),
+    s('TRANSFER_IN', 'Transfer in', 'accent'),
+    s('ADJUSTMENT', 'Adjustment', 'neutral'),
+  ],
+  vehicleOwners: [
+    s('LIMOZ', 'LIMOZ', 'success'),
+    s('GORILLAND', 'Gorilland', 'accent'),
+    s('GORITECH', 'Goritech', 'info'),
+    s('SUBCONTRACTOR', 'Subcontractor', 'warning'),
+  ],
+  currencies: [s('RWF', 'RWF', 'neutral'), s('USD', 'USD', 'neutral'), s('EUR', 'EUR', 'neutral')],
   bookingStatuses: [
     s('REQUESTED', 'Requested', 'warning'),
     s('CONFIRMED', 'Confirmed', 'info'),

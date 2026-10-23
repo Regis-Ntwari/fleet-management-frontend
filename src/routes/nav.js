@@ -22,21 +22,55 @@ import SettingsIcon from '@mui/icons-material/Settings'
 import UploadIcon from '@mui/icons-material/Upload'
 import ListAltIcon from '@mui/icons-material/ListAlt'
 import TodayIcon from '@mui/icons-material/Today'
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
+import MeetingRoomIcon from '@mui/icons-material/MeetingRoom'
 
-/** Any of these opens the driver workspace ("My day"); the Driver role holds exactly these three. */
-export const DRIVER_WORKSPACE_PERMISSIONS = ['TRIP_START', 'FUEL_SUBMIT', 'MAINTENANCE_REPORT']
+/** Any of these opens the driver workspace ("My trips"); the Driver role holds exactly these three. */
+export const DRIVER_WORKSPACE_PERMISSIONS = ['DEPLOYMENT_START', 'FUEL_SUBMIT', 'MAINTENANCE_REPORT']
 
-/** Sidebar navigation. Items are hidden when the user lacks the permission. */
+/**
+ * Whether a navigation item is shown to this user: the permission must be held, and items marked
+ * `driverOnly` also need the account to be linked to a driver profile. An administrator holds the
+ * driver permissions too, but has no trips of their own, so "My trips" stays out of their menu.
+ */
+export const navItemVisible = (user, can, item) => can(item.permission) && (!item.driverOnly || Boolean(user?.driverId))
+
+/**
+ * Destinations the phone bottom bar prefers, most important first. The first four the user
+ * may open are shown; everything else is one tap away under "Menu".
+ */
+export const MOBILE_NAV_PRIORITY = [
+  '/my-trips',
+  '/gate',
+  '/',
+  '/deployments',
+  '/dispatch',
+  '/commerce',
+  '/alerts',
+  '/vehicles',
+  '/fuel',
+  '/maintenance',
+  '/parts',
+  '/bookings',
+  '/reports',
+  '/incidents',
+  '/drivers',
+]
+
+/** Sidebar navigation. Items are hidden when the user lacks the permission. `short` is the bottom-bar label. */
 export const NAV_GROUPS = [
   {
     label: 'My work',
-    items: [{ to: '/my-day', label: 'My day', icon: TodayIcon, permission: DRIVER_WORKSPACE_PERMISSIONS }],
+    items: [
+      { to: '/my-trips', label: 'My trips', icon: TodayIcon, permission: DRIVER_WORKSPACE_PERMISSIONS, driverOnly: true },
+      { to: '/gate', label: 'Gate', icon: MeetingRoomIcon, permission: 'GATE_RECORD' },
+    ],
   },
   {
     label: 'Overview',
     items: [
       { to: '/', label: 'Dashboard', icon: DashboardIcon, permission: 'DASHBOARD_VIEW', end: true },
-      { to: '/alerts', label: 'Alert centre', icon: CampaignIcon, permission: 'DASHBOARD_VIEW', badge: 'alerts' },
+      { to: '/alerts', label: 'Alert centre', short: 'Alerts', icon: CampaignIcon, permission: 'DASHBOARD_VIEW', badge: 'alerts' },
       { to: '/dispatch', label: 'Dispatch', icon: SensorsIcon, permission: 'DISPATCH_VIEW' },
     ],
   },
@@ -52,7 +86,8 @@ export const NAV_GROUPS = [
   {
     label: 'Operations',
     items: [
-      { to: '/trips', label: 'Trips', icon: RouteIcon, permission: 'TRIP_READ' },
+      { to: '/commerce', label: 'Commerce (LPO)', short: 'Commerce', icon: ReceiptLongIcon, permission: 'ORDER_READ' },
+      { to: '/deployments', label: 'Deployments', icon: RouteIcon, permission: 'DEPLOYMENT_READ' },
       { to: '/bookings', label: 'Bookings', icon: EventAvailableIcon, permission: 'BOOKING_READ' },
       { to: '/fuel', label: 'Fuel', icon: LocalGasStationIcon, permission: 'FUEL_READ' },
       { to: '/incidents', label: 'Incidents', icon: ReportProblemIcon, permission: 'INCIDENT_READ' },
@@ -62,8 +97,14 @@ export const NAV_GROUPS = [
     label: 'Workshop',
     items: [
       { to: '/maintenance', label: 'Maintenance', icon: BuildIcon, permission: 'MAINTENANCE_READ', end: true },
-      { to: '/maintenance/schedules', label: 'Service schedules', icon: EventRepeatIcon, permission: 'MAINTENANCE_READ' },
-      { to: '/parts', label: 'Spare parts', icon: Inventory2Icon, permission: 'MAINTENANCE_READ' },
+      {
+        to: '/maintenance/schedules',
+        label: 'Service schedules',
+        short: 'Schedules',
+        icon: EventRepeatIcon,
+        permission: 'MAINTENANCE_READ',
+      },
+      { to: '/parts', label: 'Stock & spare parts', short: 'Stock', icon: Inventory2Icon, permission: 'MAINTENANCE_READ' },
     ],
   },
   {

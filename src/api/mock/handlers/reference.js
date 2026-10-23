@@ -1,7 +1,7 @@
 import { get, post, put, del } from '../router'
 import { getDb, nextId, persist } from '../db'
 import { badRequest, conflict, notFound, requireFields } from '../core'
-import { lookupItems, recordAudit, toCategory } from '../mappers'
+import { lookupItems, recordAudit, toCategory, toCompany, toTariff } from '../mappers'
 export { REFERENCE } from '../referenceData'
 /**
  * Every enum, status and suggestion list the UI renders. Lists are rows in `db.lookups`
@@ -14,6 +14,8 @@ get('/reference', () => {
   // Roles live in the database, so badges and filters pick up roles created by an administrator.
   out.roles = d.roles.map((r) => ({ value: r.code, label: r.name, tone: r.tone ?? 'neutral' }))
   out.vehicleCategories = d.categories.map(toCategory)
+  out.companies = d.companies.map(toCompany)
+  out.tariffs = d.tariffs.map(toTariff)
   return out
 })
 get('/vehicle-categories', () => getDb().categories.map(toCategory), { permission: 'VEHICLE_READ' })

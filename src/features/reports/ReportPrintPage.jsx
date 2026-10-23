@@ -27,11 +27,13 @@ export default function ReportPrintPage() {
   const defs = useQuery({ queryKey: ['reports', 'definitions'], queryFn: () => http.get('/reports'), staleTime: 600_000 })
   const def = defs.data?.find((r) => r.key === key)
   const params = useMemo(() => {
+    const extra = {}
+    for (const k of ['companyId', 'driverId']) if (search.get(k)) extra[k] = search.get(k)
     if (def?.supportsDateRange) {
       const fallback = defaultRange('30d')
-      return { from: search.get('from') ?? fallback.from, to: search.get('to') ?? fallback.to }
+      return { from: search.get('from') ?? fallback.from, to: search.get('to') ?? fallback.to, ...extra }
     }
-    return { date: search.get('date') ?? format(new Date(), 'yyyy-MM-dd') }
+    return { date: search.get('date') ?? format(new Date(), 'yyyy-MM-dd'), ...extra }
   }, [def, search])
   const report = useQuery({
     queryKey: ['reports', key, params],
@@ -67,7 +69,7 @@ export default function ReportPrintPage() {
       </Box>
     )
 
-  const backTo = `/reports/${key}${def.supportsDateRange ? `?from=${params.from}&to=${params.to}` : `?date=${params.date}`}`
+  const backTo = `/reports/${key}?${new URLSearchParams(params)}`
 
   return (
     <Box sx={{ minHeight: '100dvh', bgcolor: 'background.subtle' }} className="report-print-page">

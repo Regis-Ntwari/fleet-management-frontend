@@ -1,5 +1,5 @@
 import { REFERENCE } from './referenceData'
-import { LOCATIONS, STATIONS, TECHNICIANS, TRIP_PURPOSES, WORKSHOPS } from './data'
+import { COMPANIES, LOCATIONS, STATIONS, TECHNICIANS, TRIP_PURPOSES, WORKSHOPS } from './data'
 
 /**
  * Catalogue of the editable reference lists (Administration → Reference data).
@@ -67,10 +67,10 @@ export const LOOKUP_LISTS = [
     name: 'Locations',
     group: 'Operations',
     kind: 'text',
-    description: 'Suggested pick-up points and destinations for trips, bookings and incidents.',
+    description: 'Suggested pick-up points and destinations for deployments, bookings and incidents.',
     usage: [
-      ['trips', 'startLocation'],
-      ['trips', 'destination'],
+      ['deployments', 'startLocation'],
+      ['deployments', 'destination'],
       ['bookings', 'pickupLocation'],
       ['bookings', 'dropoffLocation'],
       ['incidents', 'location'],
@@ -79,12 +79,46 @@ export const LOOKUP_LISTS = [
   },
   {
     key: 'tripPurposes',
-    name: 'Trip purposes',
+    name: 'Deployment purposes',
     group: 'Operations',
     kind: 'text',
-    description: 'Suggested purposes when planning a trip.',
-    usage: [['trips', 'purpose']],
+    description: 'Suggested purposes when registering a deployment.',
+    usage: [['deployments', 'purpose']],
     items: text(TRIP_PURPOSES),
+  },
+  {
+    key: 'vehicleOwners',
+    name: 'Vehicle owners',
+    group: 'Operations',
+    kind: 'coded',
+    description:
+      'Who owns a vehicle: one of the group companies or a subcontractor. Subcontractor deployments take the “2” number series and carry an owner amount.',
+    usage: [
+      ['vehicles', 'owner'],
+      ['deployments', 'owner'],
+    ],
+    items: withSystem(REFERENCE.vehicleOwners, ['SUBCONTRACTOR']),
+  },
+  {
+    key: 'institutions',
+    name: 'Institutions',
+    group: 'Commerce',
+    kind: 'text',
+    description: 'Customer institutions that issue purchase orders (LPO). Offered on the LPO and deployment forms.',
+    usage: [
+      ['purchaseOrders', 'institution'],
+      ['deployments', 'institution'],
+    ],
+    items: text(COMPANIES),
+  },
+  {
+    key: 'currencies',
+    name: 'Currencies',
+    group: 'Commerce',
+    kind: 'coded',
+    description: 'Currencies an LPO amount can be recorded in.',
+    usage: [['purchaseOrders', 'currency']],
+    items: withSystem(REFERENCE.currencies, ['RWF']),
   },
   {
     key: 'serviceTypes',
@@ -162,6 +196,42 @@ export const LOOKUP_LISTS = [
     items: text(TECHNICIANS),
   },
   {
+    key: 'stockUnits',
+    name: 'Stock units',
+    group: 'Workshop',
+    kind: 'text',
+    description: 'Units of measure for spare parts and consumables.',
+    usage: [['parts', 'unit']],
+    items: text(['pcs', 'set', 'litre', 'kg', 'metre', 'pair', 'box']),
+  },
+  {
+    key: 'stockLocations',
+    name: 'Stock locations',
+    group: 'Workshop',
+    kind: 'text',
+    description: 'Stores and shelves where each company keeps its parts.',
+    usage: [['parts', 'location']],
+    items: text(['Kacyiru main store', 'Kacyiru workshop shelf', 'Remera store', 'Musanze depot', 'Vehicle kit']),
+  },
+  {
+    key: 'stockUnits',
+    name: 'Stock units',
+    group: 'Workshop',
+    kind: 'text',
+    description: 'Units of measure for spare parts and consumables.',
+    usage: [['parts', 'unit']],
+    items: text(['pcs', 'set', 'litre', 'kg', 'metre', 'pair', 'box']),
+  },
+  {
+    key: 'stockLocations',
+    name: 'Stock locations',
+    group: 'Workshop',
+    kind: 'text',
+    description: 'Stores and shelves where each company keeps its parts.',
+    usage: [['parts', 'location']],
+    items: text(['Kacyiru main store', 'Kacyiru workshop shelf', 'Remera store', 'Musanze depot', 'Vehicle kit']),
+  },
+  {
     key: 'serviceTasks',
     name: 'Service schedule tasks',
     group: 'Workshop',
@@ -185,7 +255,9 @@ export const LOOKUP_LISTS = [
     ['vehicleStatuses', 'Vehicle statuses', [['vehicles', 'status']]],
     ['driverStatuses', 'Driver statuses', [['drivers', 'status']]],
     ['assignmentStatuses', 'Assignment statuses', [['assignments', 'status']]],
-    ['tripStatuses', 'Trip statuses', [['trips', 'status']]],
+    ['deploymentStatuses', 'Deployment statuses', [['deployments', 'status']]],
+    ['purchaseOrderStatuses', 'LPO statuses', []],
+    ['stockMovementTypes', 'Stock movement types', [['stockMovements', 'type']]],
     ['bookingStatuses', 'Booking statuses', [['bookings', 'status']]],
     ['fuelRequestStatuses', 'Fuel allocation statuses', [['fuelRequests', 'status']]],
     ['maintenanceStatuses', 'Maintenance statuses', [['maintenance', 'status']]],

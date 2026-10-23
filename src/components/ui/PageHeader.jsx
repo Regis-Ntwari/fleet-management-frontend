@@ -49,9 +49,7 @@ export function PageHeader({ title, description, actions, breadcrumbs, meta, sx,
           {description ? <Typography sx={{ mt: 0.5, maxWidth: 672, fontSize: 13.5, color: 'text.muted' }}>{description}</Typography> : null}
         </Box>
         {actions ? (
-          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
-            {actions}
-          </Stack>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, minWidth: 0, maxWidth: '100%' }}>{actions}</Box>
         ) : null}
       </Box>
       {children}

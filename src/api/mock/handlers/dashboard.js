@@ -23,7 +23,7 @@ function scope(query) {
     .filter((v) => !driverVehicleIds || driverVehicleIds.has(v.id))
   const vehicleIds = new Set(vehicles.map((v) => v.id))
   const inScope = (vehicleId) => vehicleIds.has(vehicleId)
-  const trips = d.trips.filter((t) => inScope(t.vehicleId)).filter((t) => !query.driverId || t.driverId === Number(query.driverId))
+  const trips = d.deployments.filter((t) => inScope(t.vehicleId)).filter((t) => !query.driverId || t.driverId === Number(query.driverId))
   const fuel = d.fuel.filter((f) => inScope(f.vehicleId)).filter((f) => !query.driverId || f.driverId === Number(query.driverId))
   const maintenance = d.maintenance.filter((m) => inScope(m.vehicleId))
   const movements = d.movements.filter((m) => inScope(m.vehicleId))

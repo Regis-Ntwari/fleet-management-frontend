@@ -8,7 +8,7 @@ const ReferenceContext = createContext(null)
 const EMPTY = {
   vehicleStatuses: [],
   driverStatuses: [],
-  tripStatuses: [],
+  deploymentStatuses: [],
   bookingStatuses: [],
   maintenanceStatuses: [],
   maintenanceTypes: [],
@@ -33,6 +33,15 @@ const EMPTY = {
   technicians: [],
   serviceTasks: [],
   vehicleCategories: [],
+  vehicleOwners: [],
+  institutions: [],
+  currencies: [],
+  stockUnits: [],
+  stockLocations: [],
+  purchaseOrderStatuses: [],
+  stockMovementTypes: [],
+  companies: [],
+  tariffs: [],
 }
 
 /** Loads enum labels, tones and categories once; every status badge and select reads from here. */
@@ -60,7 +69,7 @@ export function useReference() {
 const KIND_MAP = {
   vehicle: 'vehicleStatuses',
   driver: 'driverStatuses',
-  trip: 'tripStatuses',
+  trip: 'deploymentStatuses',
   booking: 'bookingStatuses',
   maintenance: 'maintenanceStatuses',
   maintenanceType: 'maintenanceTypes',
@@ -84,6 +93,13 @@ const KIND_MAP = {
   workshop: 'workshops',
   technician: 'technicians',
   serviceTask: 'serviceTasks',
+  vehicleOwner: 'vehicleOwners',
+  institution: 'institutions',
+  currency: 'currencies',
+  stockUnit: 'stockUnits',
+  stockLocation: 'stockLocations',
+  purchaseOrder: 'purchaseOrderStatuses',
+  stockMovement: 'stockMovementTypes',
 }
 
 export function useStatusMeta(kind, value) {
@@ -103,6 +119,20 @@ export function useSuggestions(kind) {
   const { data } = useReference()
   const list = data[KIND_MAP[kind] ?? kind] ?? []
   return useMemo(() => list.map((s) => s.label), [list])
+}
+
+/** Active operating companies for pickers: [{ value, label, description, meta }] */
+export function useCompanyOptions({ includeInactive = false } = {}) {
+  const { data } = useReference()
+  return (data.companies ?? [])
+    .filter((c) => includeInactive || c.active)
+    .map((c) => ({ value: c.id, label: c.name, description: `${c.legalName} · ${c.numberPrefix}`, meta: c }))
+}
+
+/** Active tariff categories (CAT1–CAT3) with their daily rate. */
+export function useTariffOptions() {
+  const { data } = useReference()
+  return (data.tariffs ?? []).filter((t) => t.active).map((t) => ({ value: t.id, label: `${t.code} · ${t.name}`, meta: t }))
 }
 
 export function useCategoryOptions() {

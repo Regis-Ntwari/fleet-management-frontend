@@ -61,10 +61,11 @@ export function Topbar({ onOpenMobileNav, onOpenSearch }) {
     <AppBar position="sticky" sx={{ zIndex: (t) => t.zIndex.appBar }}>
       <Toolbar disableGutters sx={{ height: TOPBAR_HEIGHT, gap: 1, px: { xs: 1.5, sm: 2.5 } }}>
         <IconButton label="Open navigation" icon={MenuIcon} sx={{ display: { lg: 'none' } }} onClick={onOpenMobileNav} />
+        <IconButton label="Search" icon={SearchIcon} sx={{ display: { sm: 'none' } }} onClick={onOpenSearch} />
         <ButtonBase
           onClick={onOpenSearch}
           sx={{
-            display: 'flex',
+            display: { xs: 'none', sm: 'flex' },
             height: 36,
             width: '100%',
             maxWidth: 448,
@@ -84,7 +85,7 @@ export function Topbar({ onOpenMobileNav, onOpenSearch }) {
         >
           <SearchIcon sx={{ fontSize: 18 }} aria-hidden />
           <Box component="span" sx={{ flex: 1, textAlign: 'left' }}>
-            Search plates, drivers, trips, bookings…
+            Search plates, drivers, deployments, LPOs…
           </Box>
           <Stack direction="row" spacing={0.5} sx={{ display: { xs: 'none', sm: 'flex' } }}>
             <Kbd>⌘</Kbd>
@@ -92,11 +93,13 @@ export function Topbar({ onOpenMobileNav, onOpenSearch }) {
           </Stack>
         </ButtonBase>
         <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', ml: 'auto' }}>
-          <Dropdown
-            trigger={<IconButton label="Theme" icon={resolved === 'dark' ? DarkModeIcon : LightModeIcon} />}
-            items={themeItems}
-            width={160}
-          />
+          <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+            <Dropdown
+              trigger={<IconButton label="Theme" icon={resolved === 'dark' ? DarkModeIcon : LightModeIcon} />}
+              items={themeItems}
+              width={160}
+            />
+          </Box>
           <Badge variant="dot" color="error" invisible={unread === 0} overlap="circular" sx={{ '& .MuiBadge-badge': { top: 8, right: 8 } }}>
             <IconButton
               label={`Notifications${unread ? ` (${unread} unread)` : ''}`}
@@ -138,6 +141,11 @@ export function Topbar({ onOpenMobileNav, onOpenSearch }) {
               { heading: user?.email },
               { label: 'My profile', icon: PersonIcon, onSelect: () => navigate('/settings?tab=profile') },
               { label: 'Change password', icon: KeyIcon, onSelect: () => navigate('/settings?tab=profile') },
+              {
+                label: `Theme: ${theme === 'system' ? 'system' : theme}`,
+                icon: resolved === 'dark' ? DarkModeIcon : LightModeIcon,
+                onSelect: () => navigate('/settings?tab=appearance'),
+              },
               { separator: true },
               { label: 'Sign out', icon: LogoutIcon, onSelect: () => signOut.mutate(), tone: 'danger' },
             ]}

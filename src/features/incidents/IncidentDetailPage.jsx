@@ -128,7 +128,7 @@ export default function IncidentDetailPage() {
       {i.status === 'CLOSED' ? (
         <InlineAlert tone="info">This incident is closed and read-only. The full history is retained below.</InlineAlert>
       ) : null}
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xl: 'repeat(3, minmax(0, 1fr))' } }}>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', xl: 'repeat(3, minmax(0, 1fr))' } }}>
         <Stack spacing={2} sx={{ gridColumn: { xl: 'span 2' } }}>
           <Card>
             <CardHeader title="Incident" />

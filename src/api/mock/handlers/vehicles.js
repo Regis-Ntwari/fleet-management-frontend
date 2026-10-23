@@ -14,7 +14,7 @@ import {
   toIncident,
   toMaintenance,
   toSchedule,
-  toTrip,
+  toDeployment,
   toVehicle,
   toVehicleSummary,
 } from '../mappers'
@@ -59,6 +59,8 @@ function validateVehicle(input, existingId = null) {
   if (!isLookupValue('fuelTypes', input.fuelType)) errors.push({ field: 'fuelType', message: 'Choose a fuel type.' })
   if (!isLookupValue('transmissions', input.transmission)) errors.push({ field: 'transmission', message: 'Choose a transmission.' })
   if (!isLookupValue('vehicleStatuses', input.status)) errors.push({ field: 'status', message: 'Choose a status.' })
+  if (!isLookupValue('vehicleOwners', input.owner)) errors.push({ field: 'owner', message: 'Choose the vehicle owner.' })
+  if (input.owner === 'SUBCONTRACTOR' && !input.ownerName?.trim()) errors.push({ field: 'ownerName', message: 'Name the subcontractor.' })
   const odo = Number(input.odometerKm)
   if (!Number.isFinite(odo) || odo < 0 || odo > 3_000_000)
     errors.push({ field: 'odometerKm', message: 'Enter a realistic odometer value.' })
@@ -92,6 +94,8 @@ const normalise = (input) => ({
   insurancePolicyNumber: input.insurancePolicyNumber?.trim() || null,
   insuranceExpiry: input.insuranceExpiry || null,
   department: input.department?.trim() || null,
+  owner: input.owner,
+  ownerName: input.owner === 'SUBCONTRACTOR' ? input.ownerName.trim() : null,
   status: input.status,
   notes: input.notes?.trim() || null,
 })
@@ -107,6 +111,7 @@ get(
       .filter((v) => !query.categoryId || v.categoryId === Number(query.categoryId))
       .filter((v) => !query.department || v.department === query.department)
       .filter((v) => !query.fuelType || v.fuelType === query.fuelType)
+      .filter((v) => !query.owner || v.owner === query.owner)
       .map(toVehicle)
       .filter((v) => !query.maintenanceStatus || v.maintenanceStatus === query.maintenanceStatus)
       .filter((v) => !query.gpsStatus || v.telematics.status === query.gpsStatus)
@@ -168,7 +173,7 @@ put(
       )
     }
     if (next.status !== row.status) {
-      if (row.status === 'ON_TRIP') throw businessRule('This vehicle is on a trip. Complete or cancel the trip before changing its status.')
+      if (row.status === 'ON_TRIP') throw businessRule('This vehicle is out on a deployment. Record its return before changing its status.')
       if (
         ['AVAILABLE', 'ASSIGNED', 'ON_TRIP', 'RESERVED'].includes(next.status) &&
         getDb().maintenance.some(
@@ -238,13 +243,13 @@ del(
 // ----- vehicle sub-resources -----
 
 get(
-  '/vehicles/:id/trips',
+  '/vehicles/:id/deployments',
   ({ params, query }) => {
     const v = findVehicle(params.id)
     const list = getDb()
-      .trips.filter((t) => t.vehicleId === v.id)
+      .deployments.filter((t) => t.vehicleId === v.id)
       .filter((t) => !query.status || t.status === query.status)
-      .map(toTrip)
+      .map(toDeployment)
     return paginate(list, query, 'scheduledStartAt,desc')
   },
   { permission: 'VEHICLE_READ' },
@@ -351,7 +356,9 @@ get(
       .filter((m) => m.vehicleId === v.id && m.status === 'COMPLETED' && inDateRange(m.completedAt ?? m.reportedAt, query.from, query.to))
       .map(toMaintenance)
     const incidents = d.incidents.filter((i) => i.vehicleId === v.id && i.estimatedCost && inDateRange(i.occurredAt, query.from, query.to))
-    const trips = d.trips.filter((t) => t.vehicleId === v.id && t.status === 'COMPLETED' && inDateRange(t.endedAt, query.from, query.to))
+    const trips = d.deployments.filter(
+      (t) => t.vehicleId === v.id && t.status === 'COMPLETED' && inDateRange(t.endedAt, query.from, query.to),
+    )
     const distance = trips.reduce((s, t) => s + ((t.endOdometer ?? 0) - (t.startOdometer ?? 0)), 0)
     const fuelCost = fuel.reduce((s, f) => s + Math.round(f.litres * f.pricePerLitre), 0)
     const maintenanceCost = maint.reduce((s, m) => s + m.totalCost, 0)
@@ -434,33 +441,33 @@ get(
           link: `/assignments?vehicleId=${v.id}`,
         })
     }
-    for (const t of d.trips.filter((x) => x.vehicleId === v.id)) {
+    for (const t of d.deployments.filter((x) => x.vehicleId === v.id)) {
       if (t.startedAt)
         events.push({
           id: `tr-${t.id}-s`,
           at: t.startedAt,
-          kind: 'TRIP',
-          title: `Trip started · ${t.tripNumber}`,
+          kind: 'DEPLOYMENT',
+          title: `Departed · ${t.deploymentNumber}`,
           description: `${t.startLocation} → ${t.destination}`,
-          link: `/trips/${t.id}`,
+          link: `/deployments/${t.id}`,
         })
       if (t.endedAt)
         events.push({
           id: `tr-${t.id}-e`,
           at: t.endedAt,
-          kind: 'TRIP',
-          title: `Trip completed · ${t.tripNumber}`,
+          kind: 'DEPLOYMENT',
+          title: `Returned · ${t.deploymentNumber}`,
           description: t.endOdometer && t.startOdometer ? `${t.endOdometer - t.startOdometer} km, ${driverNameOf(t.driverId)}` : null,
-          link: `/trips/${t.id}`,
+          link: `/deployments/${t.id}`,
         })
       if (t.status === 'CANCELLED')
         events.push({
           id: `tr-${t.id}-c`,
           at: t.updatedAt,
-          kind: 'TRIP',
-          title: `Trip cancelled · ${t.tripNumber}`,
+          kind: 'DEPLOYMENT',
+          title: `Deployment cancelled · ${t.deploymentNumber}`,
           description: t.notes,
-          link: `/trips/${t.id}`,
+          link: `/deployments/${t.id}`,
         })
     }
     for (const f of d.fuel.filter((x) => x.vehicleId === v.id))

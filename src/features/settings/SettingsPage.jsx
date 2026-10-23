@@ -33,6 +33,8 @@ import { InlineAlert, Skeleton } from '@/components/ui/Feedback'
 import { Avatar } from '@/components/ui/Avatar'
 import { useToast } from '@/components/ui/Toast'
 import { isMockOffline, setMockOffline } from '@/api/mock'
+import { CompaniesTab } from './CompaniesTab'
+import { TariffsTab } from './TariffsTab'
 
 const mono = (t) => t.typography.fontFamilyMono
 
@@ -40,6 +42,8 @@ const TABS = [
   { key: 'profile', label: 'My profile' },
   { key: 'thresholds', label: 'Operational thresholds' },
   { key: 'categories', label: 'Vehicle categories' },
+  { key: 'companies', label: 'Companies' },
+  { key: 'tariffs', label: 'Deployment tariffs' },
   { key: 'appearance', label: 'Appearance' },
   { key: 'system', label: 'System' },
 ]
@@ -47,7 +51,7 @@ const TABS = [
 export default function SettingsPage() {
   const { can } = useAuth()
   const tabs = TABS.filter((t) =>
-    ['thresholds', 'categories', 'system'].includes(t.key) ? can('SETTINGS_MANAGE') || t.key !== 'system' : true,
+    ['thresholds', 'categories', 'companies', 'tariffs', 'system'].includes(t.key) ? can('SETTINGS_MANAGE') || t.key !== 'system' : true,
   )
   const tab = useActiveTab('tab', tabs)
   return (
@@ -57,6 +61,8 @@ export default function SettingsPage() {
       {tab === 'profile' ? <ProfileTab /> : null}
       {tab === 'thresholds' ? <ThresholdsTab /> : null}
       {tab === 'categories' ? <CategoriesTab /> : null}
+      {tab === 'companies' ? <CompaniesTab /> : null}
+      {tab === 'tariffs' ? <TariffsTab /> : null}
       {tab === 'appearance' ? <AppearanceTab /> : null}
       {tab === 'system' ? <SystemTab /> : null}
     </Box>
@@ -81,7 +87,7 @@ function ProfileTab() {
     onSuccess: () => reset(),
   })
   return (
-    <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { lg: 'repeat(2, minmax(0, 1fr))' } }}>
+    <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'repeat(2, minmax(0, 1fr))' } }}>
       <Card>
         <CardHeader title="Account" />
         <CardBody>
@@ -156,7 +162,7 @@ function Row({ label, hint, children }) {
         borderBottom: 1,
         borderColor: 'divider',
         py: 2,
-        gridTemplateColumns: { sm: '1fr 220px' },
+        gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: '1fr 220px' },
         alignItems: { sm: 'center' },
         '&:last-child': { borderBottom: 0 },
       }}
@@ -198,6 +204,8 @@ function ThresholdsTab() {
         maintenanceDueSoonDays: Number(v.maintenanceDueSoonDays),
         gpsOfflineThresholdMinutes: Number(v.gpsOfflineThresholdMinutes),
         idleVehicleDays: Number(v.idleVehicleDays),
+        missionFirstDayAmount: Number(v.missionFirstDayAmount),
+        missionExtraDayAmount: Number(v.missionExtraDayAmount),
       }),
     invalidate: [['settings'], ['alerts'], ['dashboard'], ['vehicles'], ['maintenance'], ['documents'], ['fuel']],
     success: 'Thresholds saved',
@@ -276,6 +284,24 @@ function ThresholdsTab() {
               <Input {...register('timezone')} disabled />
               <Input {...register('currency')} disabled />
             </Box>
+          </Row>
+        </CardBody>
+      </Card>
+      <Card sx={{ mt: 2 }}>
+        <CardHeader
+          title="Driver missions"
+          description="Mission allowance proposed on internal deployments (series 1): first day plus each additional effective day. Editable per deployment."
+        />
+        <CardBody sx={{ py: 0 }}>
+          <Row label="First day" hint="Allowance for a one-day deployment.">
+            <Field error={e('missionFirstDayAmount')}>
+              <Input type="number" inputMode="numeric" {...register('missionFirstDayAmount')} trailing="RWF" disabled={readOnly} />
+            </Field>
+          </Row>
+          <Row label="Each additional day" hint="Added for every effective day after the first.">
+            <Field error={e('missionExtraDayAmount')}>
+              <Input type="number" inputMode="numeric" {...register('missionExtraDayAmount')} trailing="RWF" disabled={readOnly} />
+            </Field>
           </Row>
         </CardBody>
         {!readOnly ? (

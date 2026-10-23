@@ -136,13 +136,13 @@ export default function DashboardPage() {
           hint={s ? `${s.assignedVehicles} assigned · ${s.reservedVehicles} reserved` : null}
         />
         <Stat
-          label="On trip now"
+          label="Out now"
           value={s?.onTripVehicles}
           icon={RouteIcon}
           tone="accent"
           loading={summary.isLoading}
-          to="/trips?status=IN_PROGRESS"
-          hint={s ? `${s.tripsToday} trips scheduled today` : null}
+          to="/deployments?status=IN_PROGRESS"
+          hint={s ? `${s.tripsToday} deployments scheduled today` : null}
         />
         <Stat
           label="In workshop"
@@ -179,7 +179,7 @@ export default function DashboardPage() {
           value={s?.tripsInPeriod}
           delta={s?.deltas.tripsInPeriod}
           loading={summary.isLoading}
-          to="/trips?status=COMPLETED"
+          to="/deployments?status=COMPLETED"
         />
         <Stat
           label="Distance"
@@ -223,9 +223,12 @@ export default function DashboardPage() {
         />
       </StatGrid>
 
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xl: 'repeat(3, minmax(0, 1fr))' } }}>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', xl: 'repeat(3, minmax(0, 1fr))' } }}>
         <AlertsCard />
-        <StatGrid cols={2} sx={{ gridColumn: { xl: 'span 2' }, gridTemplateColumns: { xl: 'repeat(2, minmax(0, 1fr))' } }}>
+        <StatGrid
+          cols={2}
+          sx={{ gridColumn: { xl: 'span 2' }, gridTemplateColumns: { xs: 'minmax(0, 1fr)', xl: 'repeat(2, minmax(0, 1fr))' } }}
+        >
           <Stat
             label="Active drivers"
             value={s?.activeDrivers}
@@ -280,7 +283,7 @@ export default function DashboardPage() {
         </StatGrid>
       </Box>
 
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { lg: 'repeat(2, minmax(0, 1fr))' } }}>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'repeat(2, minmax(0, 1fr))' } }}>
         <DistanceTrendCard params={params} />
         <FleetStatusCard params={params} />
         <AvailabilityCard params={params} />
@@ -397,8 +400,8 @@ export function alertLink(a) {
       return `/bookings/${a.entityId}`
     case 'FUEL':
       return `/fuel?anomaly=true`
-    case 'TRIP':
-      return `/trips/${a.entityId}`
+    case 'DEPLOYMENT':
+      return `/deployments/${a.entityId}`
     case 'DRIVER':
       return `/drivers/${a.entityId}`
     default:
@@ -410,7 +413,7 @@ function DistanceTrendCard({ params }) {
   const trend = useDistanceTrend(params)
   const data = trend.data ?? []
   const total = data.reduce((s, d) => s + d.distanceKm, 0)
-  const trips = data.reduce((s, d) => s + d.trips, 0)
+  const trips = data.reduce((s, d) => s + d.deployments, 0)
   return (
     <Card>
       <CardHeader
@@ -770,7 +773,7 @@ function UtilizationCard({ params }) {
         }
       />
       <CardBody>
-        <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { lg: 'repeat(3, minmax(0, 1fr))' } }}>
+        <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'repeat(3, minmax(0, 1fr))' } }}>
           <Box sx={{ gridColumn: { lg: 'span 1' } }}>
             <SectionLabel>By category</SectionLabel>
             <ChartFrame

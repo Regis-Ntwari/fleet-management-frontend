@@ -11,7 +11,7 @@ import {
   toDriver,
   toDriverSummary,
   toIncident,
-  toTrip,
+  toDeployment,
 } from '../mappers'
 
 const audit = (user, action, row, changes = null) =>
@@ -212,13 +212,13 @@ get(
 )
 
 get(
-  '/drivers/:id/trips',
+  '/drivers/:id/deployments',
   ({ params, query }) => {
     const row = findDriver(params.id)
     return paginate(
       getDb()
-        .trips.filter((t) => t.driverId === row.id)
-        .map(toTrip),
+        .deployments.filter((t) => t.driverId === row.id)
+        .map(toDeployment),
       query,
       'scheduledStartAt,desc',
     )
@@ -257,7 +257,7 @@ get(
   ({ params }) => {
     const row = findDriver(params.id)
     const d = getDb()
-    const trips = d.trips.filter((t) => t.driverId === row.id)
+    const trips = d.deployments.filter((t) => t.driverId === row.id)
     const completed = trips.filter((t) => t.status === 'COMPLETED')
     const distance = completed.reduce((s, t) => s + ((t.endOdometer ?? 0) - (t.startOdometer ?? 0)), 0)
     const fuel = completed.reduce((s, t) => s + (t.fuelUsedLitres ?? 0), 0)

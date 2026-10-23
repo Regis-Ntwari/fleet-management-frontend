@@ -161,9 +161,9 @@ export function ReportDocument({ def, report, user, className }) {
       {/* Title block */}
       <Box sx={{ pt: 3 }}>
         <Typography component="h1" sx={{ fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
-          {def.name}
+          {r.title ?? def.name}
         </Typography>
-        <Typography sx={{ mt: 0.75, maxWidth: 560, fontSize: 13, color: 'text.secondary' }}>{def.description}</Typography>
+        <Typography sx={{ mt: 0.75, maxWidth: 560, fontSize: 13, color: 'text.secondary' }}>{r.subtitle ?? def.description}</Typography>
         <Box
           sx={{
             mt: 2.5,

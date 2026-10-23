@@ -41,8 +41,11 @@ export const PERMISSIONS = [
   P('ASSIGNMENT_MANAGE', 'Manage assignments', 'Fleet', 'Assign and release drivers on vehicles.'),
   P('DOCUMENT_READ', 'View documents', 'Fleet', 'Vehicle and driver documents.'),
   P('DOCUMENT_MANAGE', 'Manage documents', 'Fleet', 'Upload, renew and remove documents.'),
-  P('TRIP_READ', 'View trips', 'Operations', 'Trip list and trip detail.'),
-  P('TRIP_MANAGE', 'Manage trips', 'Operations', 'Plan, dispatch, complete and cancel trips.'),
+  P('DEPLOYMENT_READ', 'View deployments', 'Operations', 'Deployment list, detail and road maps.'),
+  P('DEPLOYMENT_MANAGE', 'Manage deployments', 'Operations', 'Register, dispatch, replace, return and cancel deployments.'),
+  P('GATE_RECORD', 'Record gate movements', 'Operations', 'Record departure and return odometer readings at the gate.'),
+  P('ORDER_READ', 'View commerce / LPOs', 'Commerce', 'Customer purchase orders and what has been deployed against them.'),
+  P('ORDER_MANAGE', 'Register LPOs', 'Commerce', 'Record and amend customer purchase orders (LPO).'),
   P('BOOKING_READ', 'View bookings', 'Operations', 'Customer booking list.'),
   P('BOOKING_MANAGE', 'Manage bookings', 'Operations', 'Create, confirm and cancel bookings.'),
   P('FUEL_READ', 'View fuel', 'Operations', 'Fuel transactions and consumption.'),
@@ -51,7 +54,7 @@ export const PERMISSIONS = [
   P('INCIDENT_MANAGE', 'Manage incidents', 'Operations', 'Report incidents, investigate, resolve and reassign departments.'),
   P('MAINTENANCE_READ', 'View maintenance', 'Workshop', 'Work orders, schedules and parts.'),
   P('MAINTENANCE_MANAGE', 'Manage maintenance', 'Workshop', 'Open, progress and complete work orders.'),
-  P('PARTS_MANAGE', 'Manage spare parts', 'Workshop', 'Maintain the parts catalogue and stock levels.'),
+  P('PARTS_MANAGE', 'Manage spare parts', 'Workshop', 'Maintain each company’s parts catalogue, receipts, issues and transfers.'),
   P('REPORT_VIEW', 'View reports', 'Insight', 'Run and view reports.'),
   P('REPORT_EXPORT', 'Export reports', 'Insight', 'Download reports as PDF or CSV.'),
   P('USER_MANAGE', 'Manage users', 'Administration', 'Create accounts, assign roles and departments, reset passwords.'),
@@ -66,12 +69,54 @@ export const PERMISSIONS = [
     'The values behind every dropdown: fuel stations, workshops, incident types, document types and more.',
   ),
   // Driver self-service: scoped to the driver profile linked to the account, never to the whole fleet.
-  P('TRIP_START', 'Start own trips', 'Driver', 'Start and complete trips where you are the driver.'),
+  P('DEPLOYMENT_START', 'Start own deployments', 'Driver', 'Record departure and return on deployments where you are the driver.'),
   P('FUEL_SUBMIT', 'Fill up as allocated', 'Driver', 'See your fuel allocations, fill up at the station and submit the receipt.'),
   P('MAINTENANCE_REPORT', 'Report vehicle problems', 'Driver', 'Report your vehicle for maintenance.'),
 ]
-/** Permissions that open the driver workspace ("My day"). */
-export const DRIVER_PERMISSIONS = ['TRIP_START', 'FUEL_SUBMIT', 'MAINTENANCE_REPORT']
+/** Permissions that open the driver workspace ("My trips"). */
+export const DRIVER_PERMISSIONS = ['DEPLOYMENT_START', 'FUEL_SUBMIT', 'MAINTENANCE_REPORT']
+/** Operating companies of the group. Each keeps its own stock and issues deployments under its own number prefix. */
+export const DEFAULT_COMPANIES = [
+  {
+    code: 'LIMOZ',
+    name: 'LIMOZ',
+    legalName: 'LIMOZ Rwanda Ltd',
+    numberPrefix: 'LIMOZ',
+    tin: '101234567',
+    address: 'KG 7 Ave, Kimihurura - Gasabo, P.O. Box 1234 Kigali, Rwanda',
+    phone: '0788 300 100',
+    email: 'info@limoz.rw',
+    roadMapTitle: 'Road map / Feuille de route / Urupapuro ruranga imikoreshereze y’imodoka',
+  },
+  {
+    code: 'GORILLAND',
+    name: 'Gorilland',
+    legalName: 'Gorilland Safaris Ltd',
+    numberPrefix: 'GSL',
+    tin: '100534834',
+    address: 'KN 8 Ave 72, Kacyiru - Gasabo, P.Box 3492 Kigali, Rwanda',
+    phone: '0788 2828 / 0788 304 935',
+    email: 'info@gorilland.com',
+    roadMapTitle: 'Road map / Feuille de route / Urupapuro ruranga imikoreshereze y’imodoka',
+  },
+  {
+    code: 'GORITECH',
+    name: 'Goritech',
+    legalName: 'Goritech Ltd',
+    numberPrefix: 'GTC',
+    tin: '102345678',
+    address: 'KN 8 Ave 72, Kacyiru - Gasabo, Kigali, Rwanda',
+    phone: '0788 300 200',
+    email: 'info@goritech.rw',
+    roadMapTitle: 'Road map / Feuille de route / Urupapuro ruranga imikoreshereze y’imodoka',
+  },
+]
+/** Tariff categories a deployment is billed under. Rates are per effective day and editable under Settings. */
+export const DEFAULT_TARIFFS = [
+  { code: 'CAT1', name: 'Category 1', dailyRate: 150_000, description: 'Executive 4x4 and luxury vehicles.' },
+  { code: 'CAT2', name: 'Category 2', dailyRate: 100_000, description: 'Standard SUV, sedan and van.' },
+  { code: 'CAT3', name: 'Category 3', dailyRate: 60_000, description: 'Light vehicles and short city hires.' },
+]
 export const PERMISSION_CODES = PERMISSIONS.map((p) => p.code)
 export const PERMISSION_GROUPS = [...new Set(PERMISSIONS.map((p) => p.group))]
 const ALL = PERMISSION_CODES
@@ -79,8 +124,9 @@ const READ_ALL = [
   'DASHBOARD_VIEW',
   'VEHICLE_READ',
   'DRIVER_READ',
-  'TRIP_READ',
+  'DEPLOYMENT_READ',
   'BOOKING_READ',
+  'ORDER_READ',
   'DISPATCH_VIEW',
   'FUEL_READ',
   'MAINTENANCE_READ',
@@ -113,8 +159,10 @@ export const DEFAULT_ROLES = [
     'VEHICLE_DELETE',
     'DRIVER_MANAGE',
     'ASSIGNMENT_MANAGE',
-    'TRIP_MANAGE',
+    'DEPLOYMENT_MANAGE',
+    'GATE_RECORD',
     'BOOKING_MANAGE',
+    'ORDER_MANAGE',
     'FUEL_MANAGE',
     'MAINTENANCE_MANAGE',
     'INCIDENT_MANAGE',
@@ -130,7 +178,7 @@ export const DEFAULT_ROLES = [
     'VEHICLE_UPDATE',
     'DRIVER_MANAGE',
     'ASSIGNMENT_MANAGE',
-    'TRIP_MANAGE',
+    'DEPLOYMENT_MANAGE',
     'FUEL_MANAGE',
     'INCIDENT_MANAGE',
     'DOCUMENT_MANAGE',
@@ -139,7 +187,7 @@ export const DEFAULT_ROLES = [
   R('DISPATCHER', 'Dispatcher', 'info', 'Assigns drivers, runs trips and bookings, logs incidents.', [
     ...READ_ALL,
     'ASSIGNMENT_MANAGE',
-    'TRIP_MANAGE',
+    'DEPLOYMENT_MANAGE',
     'BOOKING_MANAGE',
     'INCIDENT_MANAGE',
   ]),
@@ -155,7 +203,20 @@ export const DEFAULT_ROLES = [
     'MAINTENANCE_READ',
     'MAINTENANCE_MANAGE',
   ]),
-  R('DRIVER', 'Driver', 'neutral', 'Starts own trips, fills up as allocated and reports vehicle problems.', DRIVER_PERMISSIONS),
+  R('DRIVER', 'Driver', 'neutral', 'Starts own deployments, fills up as allocated and reports vehicle problems.', DRIVER_PERMISSIONS),
+  R(
+    'ACCOUNT_MANAGER',
+    'Account manager',
+    'accent',
+    'Registers customer purchase orders (LPO) and follows the deployments made against them.',
+    ['DASHBOARD_VIEW', 'VEHICLE_READ', 'DRIVER_READ', 'DEPLOYMENT_READ', 'BOOKING_READ', 'ORDER_READ', 'ORDER_MANAGE', 'REPORT_VIEW'],
+  ),
+  R('GATEKEEPER', 'Gatekeeper', 'info', 'Records departure and return odometer readings at the gate.', [
+    'VEHICLE_READ',
+    'DRIVER_READ',
+    'DEPLOYMENT_READ',
+    'GATE_RECORD',
+  ]),
   R('FINANCE', 'Finance', 'info', 'Fuel, maintenance costs and financial reports.', [
     'DASHBOARD_VIEW',
     'VEHICLE_READ',

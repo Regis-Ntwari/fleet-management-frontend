@@ -14,6 +14,8 @@ import RefreshIcon from '@mui/icons-material/Refresh'
 import ViewSidebarOutlinedIcon from '@mui/icons-material/ViewSidebarOutlined'
 import { http } from '@/api/client'
 import { useAuth } from '@/app/AuthProvider'
+import { useCompanyOptions } from '@/app/ReferenceProvider'
+import { useDriverOptions } from '@/features/common/hooks'
 import { useSearchState } from '@/hooks/useSearchState'
 import { useToast } from '@/components/ui/Toast'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -21,7 +23,7 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { DataTable } from '@/components/ui/DataTable'
 import { FilterBar } from '@/components/ui/Display'
-import { Input } from '@/components/ui/Field'
+import { Input, Select } from '@/components/ui/Field'
 import { DateRangePicker, defaultRange } from '@/components/ui/DateRange'
 import { Dropdown } from '@/components/ui/Dropdown'
 import { SegmentedControl } from '@/components/ui/Tabs'
@@ -47,7 +49,15 @@ export default function ReportViewPage() {
   const [state, update] = useSearchState({ ...defaultRange('30d'), date: today, view: 'all' })
   const defs = useQuery({ queryKey: ['reports', 'definitions'], queryFn: () => http.get('/reports'), staleTime: 600_000 })
   const def = defs.data?.find((r) => r.key === key)
-  const params = useMemo(() => (def?.supportsDateRange ? { from: state.from, to: state.to } : { date: state.date }), [def, state])
+  const filters = useMemo(() => def?.filters ?? [], [def])
+  const companies = useCompanyOptions()
+  const drivers = useDriverOptions()
+  const params = useMemo(() => {
+    const base = def?.supportsDateRange ? { from: state.from, to: state.to } : { date: state.date }
+    if (filters.includes('company') && state.companyId) base.companyId = state.companyId
+    if (filters.includes('driver') && state.driverId) base.driverId = state.driverId
+    return base
+  }, [def, state, filters])
   const report = useQuery({
     queryKey: ['reports', key, params],
     queryFn: () => http.get(`/reports/${key}`, { params }),
@@ -170,6 +180,36 @@ export default function ReportViewPage() {
               aria-label="Date"
             />
           )}
+          {filters.includes('company') ? (
+            <Select
+              value={state.companyId ?? ''}
+              onChange={(e) => update({ companyId: e.target.value })}
+              compact
+              placeholder="All companies"
+              aria-label="Company"
+            >
+              {companies.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </Select>
+          ) : null}
+          {filters.includes('driver') ? (
+            <Select
+              value={state.driverId ?? ''}
+              onChange={(e) => update({ driverId: e.target.value })}
+              compact
+              placeholder="All drivers"
+              aria-label="Driver"
+            >
+              {drivers.options.map((d) => (
+                <option key={d.value} value={d.value}>
+                  {d.label}
+                </option>
+              ))}
+            </Select>
+          ) : null}
           {periodLabel ? (
             <Box component="span" sx={{ fontSize: 12.5, color: 'text.muted' }}>
               {periodLabel}

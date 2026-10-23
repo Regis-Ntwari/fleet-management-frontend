@@ -12,6 +12,7 @@ import { isMockApi } from '@/api/client'
 import { SIDEBAR_WIDTH, SIDEBAR_WIDTH_COLLAPSED } from '@/app/theme'
 import { Sidebar, MobileSidebar } from './Sidebar'
 import { Topbar } from './Topbar'
+import { BottomNav, BOTTOM_NAV_HEIGHT } from './BottomNav'
 import { CommandPalette } from './CommandPalette'
 import { RouteErrorBoundary } from '@/pages/ErrorPage'
 
@@ -63,6 +64,9 @@ export function AppShell() {
           minHeight: '100dvh',
           flexDirection: 'column',
           pl: { lg: `${collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH}px` },
+          // Room for the phone bottom bar; nothing may push the layout wider than the viewport.
+          pb: { xs: `calc(${BOTTOM_NAV_HEIGHT}px + env(safe-area-inset-bottom))`, lg: 0 },
+          overflowX: 'clip',
           transition: 'padding-left 200ms',
         }}
       >
@@ -123,6 +127,7 @@ export function AppShell() {
           )}
         </Box>
       </Box>
+      <BottomNav onOpenMenu={() => setMobileOpen(true)} menuOpen={mobileOpen} />
       <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
       <ScrollRestoration />
     </Box>

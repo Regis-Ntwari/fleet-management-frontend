@@ -206,7 +206,47 @@ export const summaries = {
     ],
   }),
 
-  trips: ({ rows, from, to }) => {
+  'driver-missions': ({ rows }) => {
+    const byDriver = Object.values(
+      rows.reduce((acc, r) => {
+        acc[r.driver] ??= { driver: r.driver, missionDue: 0, days: 0 }
+        acc[r.driver].missionDue += r.missionDue
+        acc[r.driver].days += r.effectiveDays
+        return acc
+      }, {}),
+    )
+    return {
+      kpis: [
+        kpi('deployments', 'Deployments', rows.length, 'number'),
+        kpi('drivers', 'Drivers', byDriver.length, 'number'),
+        kpi(
+          'days',
+          'Effective days',
+          sum(rows, (r) => r.effectiveDays),
+          'number',
+        ),
+        kpi(
+          'due',
+          'Mission due',
+          sum(rows, (r) => r.missionDue),
+          'currency',
+        ),
+      ],
+      charts: [
+        {
+          key: 'byDriver',
+          title: 'Mission due per driver',
+          subtitle: 'Top drivers by amount due',
+          type: 'hbar',
+          span: 2,
+          x: { key: 'driver', format: 'label' },
+          series: [{ key: 'missionDue', label: 'Mission due', format: 'currency' }],
+          data: top(byDriver, 'missionDue', 12),
+        },
+      ],
+    }
+  },
+  deployments: ({ rows, from, to }) => {
     const completed = rows.filter((r) => r.status === 'COMPLETED')
     const withDuration = rows.filter((r) => r.durationMin != null)
     const stacked = stackedByEnum(
@@ -215,14 +255,14 @@ export const summaries = {
       rows,
       (r) => r.scheduledStartAt,
       (r) => r.status,
-      lookupItems('tripStatuses'),
+      lookupItems('deploymentStatuses'),
     )
     const byVehicle = [...countBy(rows, (r) => r.plateNumber).entries()].map(([plateNumber, trips]) => ({ plateNumber, trips }))
     return {
       kpis: [
-        kpi('trips', 'Trips', rows.length, 'number'),
-        kpi('completed', 'Completed', completed.length, 'number', {
-          hint: rows.length ? `${Math.round((completed.length / rows.length) * 100)}% of trips` : undefined,
+        kpi('trips', 'Deployments', rows.length, 'number'),
+        kpi('completed', 'Returned', completed.length, 'number', {
+          hint: rows.length ? `${Math.round((completed.length / rows.length) * 100)}% of deployments` : undefined,
         }),
         kpi('cancelled', 'Cancelled', rows.filter((r) => r.status === 'CANCELLED').length, 'number'),
         kpi(
@@ -236,8 +276,8 @@ export const summaries = {
       charts: [
         {
           key: 'volume',
-          title: `Trips ${perLabel(stacked.weekly)}`,
-          subtitle: 'Scheduled trips by status',
+          title: `Deployments ${perLabel(stacked.weekly)}`,
+          subtitle: 'Scheduled deployments by status',
           type: 'bar',
           stacked: true,
           span: 2,
@@ -247,20 +287,20 @@ export const summaries = {
         },
         {
           key: 'status',
-          title: 'Trips by status',
+          title: 'Deployments by status',
           type: 'donut',
           span: 1,
-          series: [{ key: 'value', label: 'Trips', format: 'number' }],
-          data: donutByEnum(rows, (r) => r.status, lookupItems('tripStatuses')),
+          series: [{ key: 'value', label: 'Deployments', format: 'number' }],
+          data: donutByEnum(rows, (r) => r.status, lookupItems('deploymentStatuses')),
         },
         {
           key: 'vehicles',
           title: 'Busiest vehicles',
-          subtitle: 'Trips per vehicle',
+          subtitle: 'Deployments per vehicle',
           type: 'hbar',
           span: 1,
           x: { key: 'plateNumber', format: 'label' },
-          series: [{ key: 'trips', label: 'Trips', format: 'number' }],
+          series: [{ key: 'trips', label: 'Deployments', format: 'number' }],
           data: top(byVehicle, 'trips', 8),
         },
       ],

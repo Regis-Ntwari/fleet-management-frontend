@@ -105,7 +105,11 @@ export default function VehicleDetailPage() {
     can('ASSIGNMENT_MANAGE') &&
       v.currentDriverId && { label: 'End driver assignment', icon: PersonRemoveIcon, onSelect: () => setEndOpen(true) },
     can('VEHICLE_UPDATE') && { label: 'Change status', icon: SwapHorizIcon, onSelect: () => setStatusOpen(true) },
-    can('TRIP_MANAGE') && { label: 'Plan a trip', icon: RouteIcon, onSelect: () => navigate(`/trips/new?vehicleId=${v.id}`) },
+    can('DEPLOYMENT_MANAGE') && {
+      label: 'New deployment',
+      icon: RouteIcon,
+      onSelect: () => navigate(`/deployments/new?vehicleId=${v.id}`),
+    },
     can('FUEL_MANAGE') && { label: 'Record fuel', icon: LocalGasStationIcon, onSelect: () => navigate(`/fuel/new?vehicleId=${v.id}`) },
     can('MAINTENANCE_MANAGE') && {
       label: 'Report maintenance',
@@ -295,7 +299,7 @@ function OverviewTab({ vehicle: v, onAssign, onEnd }) {
   })
   const recent = (movements.data ?? []).slice().reverse()
   return (
-    <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xl: 'repeat(3, minmax(0, 1fr))' } }}>
+    <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', xl: 'repeat(3, minmax(0, 1fr))' } }}>
       <Stack spacing={2} sx={{ gridColumn: { xl: 'span 2' } }}>
         <Card>
           <CardHeader title="Vehicle profile" />
@@ -315,6 +319,10 @@ function OverviewTab({ vehicle: v, onAssign, onEnd }) {
                 { label: 'Engine number', value: v.engineNumber, mono: true },
                 { label: 'Chassis / VIN', value: v.vin, mono: true },
                 { label: 'Department', value: v.department },
+                {
+                  label: 'Owner',
+                  value: v.owner === 'SUBCONTRACTOR' ? `Subcontractor · ${v.ownerName ?? ''}`.trim() : humanize(v.owner ?? 'LIMOZ'),
+                },
                 { label: 'Purchased', value: v.purchaseDate ? formatDate(v.purchaseDate) : null },
                 { label: 'Acquisition cost', value: v.acquisitionCost ? formatCurrency(v.acquisitionCost) : null },
                 {
@@ -512,23 +520,23 @@ function TripsTab({ vehicleId }) {
   return (
     <Stack spacing={1.5}>
       <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-        {can('TRIP_MANAGE') ? (
-          <Button size="sm" icon={AddIcon} to={`/trips/new?vehicleId=${vehicleId}`}>
-            Plan trip
+        {can('DEPLOYMENT_MANAGE') ? (
+          <Button size="sm" icon={AddIcon} to={`/deployments/new?vehicleId=${vehicleId}`}>
+            New deployment
           </Button>
         ) : null}
       </Box>
       <SubTable
         queryKey={['vehicles', 'trips', vehicleId]}
-        url={`/vehicles/${vehicleId}/trips`}
-        onRowClick={(t) => navigate(`/trips/${t.id}`)}
+        url={`/vehicles/${vehicleId}/deployments`}
+        onRowClick={(t) => navigate(`/deployments/${t.id}`)}
         columns={[
           {
-            key: 'tripNumber',
-            header: 'Trip',
+            key: 'deploymentNumber',
+            header: 'Deployment',
             render: (t) => (
               <Box component="span" sx={{ fontWeight: 500 }}>
-                {t.tripNumber}
+                {t.deploymentNumber}
               </Box>
             ),
           },
@@ -537,7 +545,7 @@ function TripsTab({ vehicleId }) {
           { key: 'driverName', header: 'Driver', hideBelow: 'lg' },
           { key: 'distanceKm', header: 'Distance', align: 'right', render: (t) => formatKm(t.distanceKm) },
           { key: 'durationMinutes', header: 'Duration', align: 'right', render: (t) => formatDuration(t.durationMinutes), hideBelow: 'lg' },
-          { key: 'status', header: 'Status', render: (t) => <StatusBadge kind="trip" value={t.status} size="sm" /> },
+          { key: 'status', header: 'Status', render: (t) => <StatusBadge kind="deployment" value={t.status} size="sm" /> },
         ]}
         empty={<EmptyState icon={RouteIcon} title="No trips yet" compact />}
       />
@@ -1056,7 +1064,7 @@ function DetailSkeleton() {
         <Skeleton height={16} width={288} />
       </Stack>
       <Skeleton height={40} width="100%" />
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xl: 'repeat(3, minmax(0, 1fr))' } }}>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', xl: 'repeat(3, minmax(0, 1fr))' } }}>
         <Skeleton height={288} sx={{ gridColumn: { xl: 'span 2' } }} />
         <Skeleton height={288} />
       </Box>

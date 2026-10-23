@@ -12,46 +12,65 @@ import { formatKm } from '@/utils/format'
 
 const COPY = {
   DISPATCHED: {
-    title: 'Dispatch trip',
-    description: 'Confirms the vehicle and driver are released for this trip. Documents and licence validity are re-checked.',
+    title: 'Dispatch deployment',
+    description: 'Confirms the vehicle and driver are released for this deployment. Documents and licence validity are re-checked.',
     confirm: 'Dispatch',
   },
   IN_PROGRESS: {
-    title: 'Start trip',
-    description: 'Record the odometer as the vehicle leaves. Defaults to the vehicle’s current reading.',
-    confirm: 'Start trip',
+    title: 'Record departure',
+    description: 'Record the odometer as the vehicle leaves the gate. Defaults to the vehicle’s current reading.',
+    confirm: 'Record departure',
   },
   COMPLETED: {
-    title: 'Complete trip',
-    description: 'Enter the odometer at arrival. Distance and duration are calculated automatically.',
-    confirm: 'Complete trip',
+    title: 'Record return',
+    description: 'Enter the odometer as the vehicle returns to Kacyiru. Distance and duration are calculated automatically.',
+    confirm: 'Record return',
   },
   CANCELLED: {
-    title: 'Cancel trip',
-    description: 'The trip is kept for the record and marked cancelled. A linked booking returns to confirmed.',
-    confirm: 'Cancel trip',
+    title: 'Cancel deployment',
+    description: 'The deployment is kept for the record and marked cancelled. A linked booking returns to confirmed.',
+    confirm: 'Cancel deployment',
   },
-  PLANNED: { title: 'Return to planned', description: 'Undo the dispatch so the trip can be edited again.', confirm: 'Return to planned' },
+  PLANNED: {
+    title: 'Return to planned',
+    description: 'Undo the dispatch so the deployment can be edited again.',
+    confirm: 'Return to planned',
+  },
 }
 
 /**
- * Moves a trip through its lifecycle (dispatch, start, complete, cancel). Shared by the trip
- * detail screen and the driver workspace, where a driver only ever starts and completes.
- * `status` is the target status; null keeps the dialog closed.
+ * Moves a deployment through its lifecycle (dispatch, depart, return, cancel). Shared by the
+ * deployment detail screen, the gate and the driver workspace, where only departure and return
+ * are recorded. `status` is the target status; null keeps the dialog closed.
  */
-export function TripTransitionDialog({ trip, status, vehicle, onClose, onDone }) {
+export function DeploymentTransitionDialog({ deployment, status, vehicle, onClose, onDone }) {
   const [values, setValues] = useState({ startOdometer: '', endOdometer: '', fuelUsedLitres: '', maxSpeedKph: '', reason: '' })
   const [error, setError] = useState(null)
   const change = useApiMutation({
-    mutationFn: (body) => http.patch(`/trips/${trip.id}/status`, body),
-    invalidate: [['trips'], ['vehicles'], ['drivers'], ['bookings'], ['dashboard'], ['dispatch'], ['me']],
-    success: (t) => `Trip ${t.tripNumber} is now ${t.status.toLowerCase().replace('_', ' ')}`,
+    mutationFn: (body) => http.patch(`/deployments/${deployment.id}/status`, body),
+    invalidate: [
+      ['deployments'],
+      ['vehicles'],
+      ['drivers'],
+      ['bookings'],
+      ['dashboard'],
+      ['dispatch'],
+      ['me'],
+      ['gate'],
+      ['purchase-orders'],
+    ],
+    success: (t) =>
+      t.status === 'IN_PROGRESS'
+        ? `${t.vehiclePlate} departed on ${t.deploymentNumber}`
+        : t.status === 'COMPLETED'
+          ? `${t.vehiclePlate} returned · ${formatKm(t.distanceKm)}`
+          : `Deployment ${t.deploymentNumber} is now ${t.status.toLowerCase().replace('_', ' ')}`,
     onSuccess: (t) => {
       onDone?.(t)
       onClose()
     },
   })
-  if (!status || !trip) return null
+  if (!status || !deployment) return null
   const copy = COPY[status]
   const set = (k) => (e) => setValues((v) => ({ ...v, [k]: e.target.value }))
   const submit = async () => {
@@ -62,6 +81,7 @@ export function TripTransitionDialog({ trip, status, vehicle, onClose, onDone })
       setError(e)
     }
   }
+  const lowerThanStart = status === 'COMPLETED' && values.endOdometer !== '' && Number(values.endOdometer) < deployment.startOdometer
   return (
     <Dialog
       open
@@ -92,6 +112,13 @@ export function TripTransitionDialog({ trip, status, vehicle, onClose, onDone })
             {error.message}
           </InlineAlert>
         ) : null}
+        <Typography sx={{ fontSize: 12.5, color: 'text.muted' }}>
+          <Box component="span" sx={{ fontFamily: (t) => t.typography.fontFamilyMono, color: 'text.primary' }}>
+            {deployment.deploymentNumber}
+          </Box>
+          {' · '}
+          {deployment.vehiclePlate} · {deployment.driverName}
+        </Typography>
         {status === 'IN_PROGRESS' ? (
           <Field
             label="Start odometer"
@@ -114,24 +141,28 @@ export function TripTransitionDialog({ trip, status, vehicle, onClose, onDone })
             <Field
               label="End odometer"
               required
-              hint={`Started at ${formatKm(trip.startOdometer)}`}
-              error={error?.fieldErrorMap?.endOdometer}
+              hint={`Departed at ${formatKm(deployment.startOdometer)}`}
+              error={
+                error?.fieldErrorMap?.endOdometer ??
+                (lowerThanStart ? 'Lower than the departure reading. Check it with the driver.' : undefined)
+              }
             >
               <Input
                 type="number"
                 inputMode="numeric"
-                min={trip.startOdometer}
+                min={deployment.startOdometer}
                 value={values.endOdometer}
                 onChange={set('endOdometer')}
                 trailing="km"
+                invalid={lowerThanStart}
                 autoFocus
               />
             </Field>
-            {values.endOdometer && Number(values.endOdometer) >= trip.startOdometer ? (
+            {values.endOdometer && Number(values.endOdometer) >= deployment.startOdometer ? (
               <Typography sx={{ mt: -1, fontSize: 12.5, color: 'text.muted' }}>
                 Distance will be recorded as{' '}
                 <Box component="span" sx={{ fontWeight: 500, color: 'text.primary' }}>
-                  {formatKm(Number(values.endOdometer) - trip.startOdometer)}
+                  {formatKm(Number(values.endOdometer) - deployment.startOdometer)}
                 </Box>
                 .
               </Typography>
@@ -160,7 +191,7 @@ export function TripTransitionDialog({ trip, status, vehicle, onClose, onDone })
               value={values.reason}
               onChange={set('reason')}
               autoFocus
-              placeholder="Client cancelled, vehicle reallocated, flight delayed…"
+              placeholder="Client cancelled, vehicle reallocated, mission postponed…"
             />
           </Field>
         ) : null}
@@ -168,3 +199,6 @@ export function TripTransitionDialog({ trip, status, vehicle, onClose, onDone })
     </Dialog>
   )
 }
+
+/** @deprecated kept so older imports keep working during the rename. */
+export const TripTransitionDialog = DeploymentTransitionDialog

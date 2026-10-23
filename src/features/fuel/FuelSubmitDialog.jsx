@@ -193,7 +193,7 @@ function FuelSubmitForm({ allocation, onClose, onDone }) {
             />
           ) : null}
         </Field>
-        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { sm: 'repeat(2, minmax(0, 1fr))' } }}>
+        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' } }}>
           <Field label="Station" required error={fieldError('station')}>
             <SuggestInput suggestions={stations} value={values.station} onChange={set('station')} invalid={!!fieldError('station')} />
           </Field>

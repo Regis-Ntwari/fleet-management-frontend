@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { ConfirmDialog } from '@/components/ui/Dialog'
 import { InlineAlert } from '@/components/ui/Feedback'
+import { BOTTOM_NAV_HEIGHT } from '@/components/layout/BottomNav'
 
 /** Chrome for create/edit screens: header, dirty-state guard, sticky actions. */
 export function FormPage({
@@ -50,7 +51,7 @@ export function FormPage({
       <Box
         sx={{
           position: 'sticky',
-          bottom: 0,
+          bottom: { xs: `calc(${BOTTOM_NAV_HEIGHT}px + env(safe-area-inset-bottom))`, lg: 0 },
           zIndex: 20,
           mx: { xs: -2, sm: -3, lg: -4, xl: -5 },
           mt: 4,

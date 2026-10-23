@@ -13,6 +13,7 @@ import { useSearchState } from '@/hooks/useSearchState'
 import { useApiMutation, useDriverOptions, usePagedQuery } from '@/features/common/hooks'
 import { ListPage } from '@/features/common/ListPage'
 import { useDepartments, useRoles } from '@/features/admin/api'
+import { useCompanyOptions } from '@/app/ReferenceProvider'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Select, Field, Input } from '@/components/ui/Field'
@@ -277,6 +278,7 @@ function UserDialog({ open, onClose, user, roles, departments, isSelf }) {
   const isEdit = Boolean(user)
   const [error, setError] = useState(null)
   const drivers = useDriverOptions()
+  const companies = useCompanyOptions({ includeInactive: true })
   const {
     register,
     handleSubmit,
@@ -295,12 +297,13 @@ function UserDialog({ open, onClose, user, roles, departments, isSelf }) {
           roleId: String(user.roleId ?? ''),
           departmentId: String(user.departmentId ?? ''),
           driverId: user.driverId ?? '',
+          companyId: String(user.companyId ?? ''),
           password: '',
         }
-      : { firstName: '', lastName: '', email: '', phone: '', roleId: '', departmentId: '', driverId: '', password: '' },
+      : { firstName: '', lastName: '', email: '', phone: '', roleId: '', departmentId: '', driverId: '', companyId: '', password: '' },
   })
   const selectedRole = roles.find((r) => String(r.id) === String(watch('roleId')))
-  const driverRole = Boolean(selectedRole?.permissions?.some((p) => ['TRIP_START', 'FUEL_SUBMIT', 'MAINTENANCE_REPORT'].includes(p)))
+  const driverRole = Boolean(selectedRole?.permissions?.some((p) => ['DEPLOYMENT_START', 'FUEL_SUBMIT', 'MAINTENANCE_REPORT'].includes(p)))
   const save = useApiMutation({
     mutationFn: (v) => {
       const body = {
@@ -311,6 +314,7 @@ function UserDialog({ open, onClose, user, roles, departments, isSelf }) {
         roleId: Number(v.roleId),
         departmentId: Number(v.departmentId),
         driverId: v.driverId ? Number(v.driverId) : null,
+        companyId: v.companyId ? Number(v.companyId) : null,
       }
       return isEdit ? http.put(`/users/${user.id}`, body) : http.post('/users', { ...body, password: v.password })
     },
@@ -352,7 +356,7 @@ function UserDialog({ open, onClose, user, roles, departments, isSelf }) {
         component="form"
         onSubmit={onSubmit}
         noValidate
-        sx={{ display: 'grid', gap: 2, gridTemplateColumns: { sm: 'repeat(2, minmax(0, 1fr))' } }}
+        sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' } }}
       >
         {error ? (
           <Box sx={{ gridColumn: { sm: 'span 2' } }}>
@@ -409,11 +413,25 @@ function UserDialog({ open, onClose, user, roles, departments, isSelf }) {
           </Select>
         </Field>
         <Field
+          label="Company"
+          error={errors.companyId?.message}
+          hint="Optional. Limits stock and spare-part screens to this company. Leave empty for head-office accounts that see every company."
+          span
+        >
+          <Select {...register('companyId')} placeholder="All companies (head office)" invalid={!!errors.companyId}>
+            {companies.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field
           label="Driver profile"
           error={errors.driverId?.message}
           hint={
             driverRole
-              ? 'Required for drivers: the trips, fuel allocations and vehicle shown in "My day" come from this driver record.'
+              ? 'Required for drivers: the trips, fuel allocations and vehicle shown in "My trips" come from this driver record.'
               : 'Optional. Link the account to a driver record to open the driver workspace for it.'
           }
           span

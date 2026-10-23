@@ -32,8 +32,8 @@ export default function BookingDetailPage() {
   const { can } = useAuth()
   const booking = useQuery({ queryKey: ['bookings', 'detail', id], queryFn: () => http.get(`/bookings/${id}`) })
   const trips = useQuery({
-    queryKey: ['trips', 'by-booking', id],
-    queryFn: () => http.get('/trips', { params: { q: booking.data.bookingNumber, size: 10 } }),
+    queryKey: ['deployments', 'by-booking', id],
+    queryFn: () => http.get('/deployments', { params: { q: booking.data.bookingNumber, size: 10 } }),
     enabled: Boolean(booking.data),
   })
   const [assignOpen, setAssignOpen] = useState(false)
@@ -110,7 +110,7 @@ export default function BookingDetailPage() {
           Assign a vehicle and driver now to avoid a missed pickup.
         </InlineAlert>
       ) : null}
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xl: 'repeat(3, minmax(0, 1fr))' } }}>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', xl: 'repeat(3, minmax(0, 1fr))' } }}>
         <Card sx={{ gridColumn: { xl: 'span 2' } }}>
           <CardHeader title="Booking details" />
           <CardBody>
@@ -174,12 +174,12 @@ export default function BookingDetailPage() {
       </Box>
       <Card>
         <CardHeader
-          title="Trips"
-          description="Trips carrying this booking"
+          title="Deployments"
+          description="Deployments carrying this booking"
           actions={
             manage && !linkedTrips.length && ['CONFIRMED', 'ASSIGNED'].includes(b.status) ? (
-              <Button size="xs" variant="ghost" icon={RouteIcon} to={`/trips/new?bookingId=${b.id}`}>
-                Plan trip manually
+              <Button size="xs" variant="ghost" icon={RouteIcon} to={`/deployments/new?bookingId=${b.id}`}>
+                Register deployment manually
               </Button>
             ) : null
           }
@@ -190,15 +190,15 @@ export default function BookingDetailPage() {
           rows={linkedTrips}
           columns={[
             {
-              key: 'tripNumber',
-              header: 'Trip',
-              render: (t) => <LinkText to={`/trips/${t.id}`}>{t.tripNumber}</LinkText>,
+              key: 'deploymentNumber',
+              header: 'Deployment',
+              render: (t) => <LinkText to={`/deployments/${t.id}`}>{t.deploymentNumber}</LinkText>,
             },
             { key: 'scheduledStartAt', header: 'Scheduled', render: (t) => formatDateTime(t.scheduledStartAt) },
             { key: 'vehiclePlate', header: 'Vehicle' },
             { key: 'driverName', header: 'Driver', hideBelow: 'md' },
             { key: 'distanceKm', header: 'Distance', align: 'right', render: (t) => formatKm(t.distanceKm) },
-            { key: 'status', header: 'Status', render: (t) => <StatusBadge kind="trip" value={t.status} size="sm" /> },
+            { key: 'status', header: 'Status', render: (t) => <StatusBadge kind="deployment" value={t.status} size="sm" /> },
           ]}
           empty={
             <EmptyState icon={RouteIcon} title="No trip yet" description="Assigning a vehicle creates the trip automatically." compact />
@@ -219,7 +219,7 @@ function AssignDialog({ booking, open, onClose }) {
   const [error, setError] = useState(null)
   const assign = useApiMutation({
     mutationFn: (body) => http.patch(`/bookings/${booking.id}/assign`, body),
-    invalidate: [['bookings'], ['trips'], ['vehicles'], ['dashboard'], ['dispatch'], ['alerts']],
+    invalidate: [['bookings'], ['deployments'], ['vehicles'], ['dashboard'], ['dispatch'], ['alerts']],
     success: 'Vehicle and driver assigned',
     onSuccess: onClose,
   })
@@ -302,7 +302,7 @@ function CancelDialog({ booking, open, onClose }) {
   const [error, setError] = useState(null)
   const cancel = useApiMutation({
     mutationFn: () => http.patch(`/bookings/${booking.id}/cancel`, { reason }),
-    invalidate: [['bookings'], ['trips'], ['vehicles'], ['dashboard'], ['dispatch'], ['alerts']],
+    invalidate: [['bookings'], ['deployments'], ['vehicles'], ['dashboard'], ['dispatch'], ['alerts']],
     success: 'Booking cancelled',
     onSuccess: onClose,
   })

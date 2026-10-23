@@ -30,6 +30,8 @@ put(
       (!Array.isArray(input.documentExpiryWarningDays) || input.documentExpiryWarningDays.some((n) => !Number.isInteger(n) || n <= 0))
     )
       errors.push({ field: 'documentExpiryWarningDays', message: 'Provide positive whole numbers.' })
+    for (const k of ['missionFirstDayAmount', 'missionExtraDayAmount'])
+      if (input[k] !== undefined && (!Number.isFinite(input[k]) || input[k] < 0)) errors.push({ field: k, message: 'Cannot be negative.' })
     if (errors.length) throw badRequest('Please correct the highlighted fields.', errors)
     const before = { ...d.settings }
     d.settings = { ...d.settings, ...input }
@@ -133,7 +135,7 @@ get(
   { permission: 'AUDIT_VIEW' },
 )
 // ---------- Global search ----------
-/** Global search only returns records the caller could open; a driver account sees just its own trips. */
+/** Global search only returns records the caller could open; a driver account sees just its own deployments. */
 get('/search', ({ query, user }) => {
   const q = (query.q ?? '').trim().toLowerCase()
   if (q.length < 2) return []
@@ -155,16 +157,26 @@ get('/search', ({ query, user }) => {
     for (const x of d.drivers)
       if (has(x.fullName, x.employeeNumber, x.phone, x.licenseNumber))
         hits.push({ type: 'DRIVER', id: x.id, title: x.fullName, subtitle: `${x.employeeNumber} · ${x.phone}`, link: `/drivers/${x.id}` })
-  const tripScope = can('TRIP_READ') ? null : can('TRIP_START') ? (user.driverId ?? -1) : undefined
+  const tripScope = can('DEPLOYMENT_READ') ? null : can('DEPLOYMENT_START') ? (user.driverId ?? -1) : undefined
   if (tripScope !== undefined)
-    for (const t of d.trips)
-      if ((tripScope == null || t.driverId === tripScope) && has(t.tripNumber, t.customerName, t.destination))
+    for (const t of d.deployments)
+      if ((tripScope == null || t.driverId === tripScope) && has(t.deploymentNumber, t.institution, t.destination))
         hits.push({
-          type: 'TRIP',
+          type: 'DEPLOYMENT',
           id: t.id,
-          title: t.tripNumber,
+          title: t.deploymentNumber,
           subtitle: `${t.startLocation} → ${t.destination}`,
-          link: `/trips/${t.id}`,
+          link: `/deployments/${t.id}`,
+        })
+  if (can('ORDER_READ') || can('ORDER_MANAGE'))
+    for (const o of d.purchaseOrders)
+      if (has(o.lpoNumber, o.institution, o.description))
+        hits.push({
+          type: 'PURCHASE_ORDER',
+          id: o.id,
+          title: o.lpoNumber,
+          subtitle: `${o.institution} · ${o.amount.toLocaleString()} ${o.currency}`,
+          link: `/commerce/${o.id}`,
         })
   if (can('BOOKING_READ'))
     for (const b of d.bookings)

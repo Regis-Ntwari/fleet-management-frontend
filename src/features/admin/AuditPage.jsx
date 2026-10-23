@@ -25,7 +25,8 @@ const ACTION_TONE = {
 const ENTITIES = [
   'VEHICLE',
   'DRIVER',
-  'TRIP',
+  'DEPLOYMENT',
+  'PURCHASE_ORDER',
   'BOOKING',
   'FUEL_TRANSACTION',
   'MAINTENANCE',
@@ -35,6 +36,8 @@ const ENTITIES = [
   'SETTINGS',
   'ASSIGNMENT',
   'SPARE_PART',
+  'COMPANY',
+  'TARIFF',
   'REPORT',
   'IMPORT',
   'SESSION',

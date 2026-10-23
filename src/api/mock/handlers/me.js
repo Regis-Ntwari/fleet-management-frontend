@@ -8,7 +8,7 @@ import {
   toDriver,
   toFuelRequest,
   toMaintenance,
-  toTrip,
+  toDeployment,
   toVehicle,
   vehicleById,
 } from '../mappers'
@@ -16,10 +16,10 @@ import {
 const OPEN_MAINTENANCE = ['REPORTED', 'INSPECTION', 'APPROVED', 'IN_PROGRESS', 'WAITING_FOR_PARTS']
 
 /**
- * Everything the driver workspace ("My day") needs in one call: the driver profile the account is
+ * Everything the driver workspace ("My trips") needs in one call: the driver profile the account is
  * linked to, the vehicle currently assigned, every trip ahead of them and their recent history,
  * all their fuel allocations and the problems they have reported. The page splits this into
- * "My day" (what needs attention now), "Trips" and "Fuel". Office staff who hold a driver permission but no driver
+ * "Today" (what needs attention now), "Deployments" and "Fuel". Office staff who hold a driver permission but no driver
  * link get an empty workspace rather than an error.
  */
 get(
@@ -32,13 +32,13 @@ get(
         driver: null,
         vehicle: null,
         licence: null,
-        trips: { active: null, upcoming: [], history: [], recent: [] },
+        deployments: { active: null, upcoming: [], history: [], recent: [] },
         fuelAllocations: [],
         maintenance: [],
       }
     const assignment = currentAssignmentOfDriver(driver.id)
     const vehicle = assignment ? toVehicle(vehicleById(assignment.vehicleId)) : null
-    const mine = d.trips.filter((t) => t.driverId === driver.id)
+    const mine = d.deployments.filter((t) => t.driverId === driver.id)
     const active = mine.find((t) => t.status === 'IN_PROGRESS') ?? null
     // Every trip still ahead of the driver; the page decides which of them belong to "today".
     const upcoming = mine
@@ -57,14 +57,14 @@ get(
       driver: toDriver(driver),
       vehicle,
       licence: documentStatus(driver.licenseExpiry),
-      trips: {
-        active: active ? toTrip(active) : null,
-        upcoming: upcoming.map(toTrip),
-        history: history.map(toTrip),
+      deployments: {
+        active: active ? toDeployment(active) : null,
+        upcoming: upcoming.map(toDeployment),
+        history: history.map(toDeployment),
         recent: history
           .filter((t) => t.status === 'COMPLETED')
           .slice(0, 5)
-          .map(toTrip),
+          .map(toDeployment),
       },
       fuelAllocations: allocations.map(toFuelRequest),
       maintenance: maintenance.map(toMaintenance),

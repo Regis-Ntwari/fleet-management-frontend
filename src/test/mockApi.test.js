@@ -64,6 +64,7 @@ describe('mock API behaves like the Spring Boot contract', () => {
       color: 'White',
       odometerKm: 10,
       seatingCapacity: 5,
+      owner: 'LIMOZ',
       status: 'AVAILABLE',
     }
     const dup = await fail(http.post('/vehicles', body))
@@ -101,9 +102,25 @@ describe('mock API behaves like the Spring Boot contract', () => {
         d.drivers.find((x) => x.id === a.driverId)?.status === 'ASSIGNED',
     )
     const vehicle = d.vehicles.find((v) => v.id === assignment.vehicleId)
-    const trip = await http.post('/trips', {
+    const lpo = d.purchaseOrders.find((o) => !o.closedAt)
+    const company = d.companies.find((c) => c.code === 'GORILLAND')
+    // Clear what the seed planned for this vehicle and driver so the new deployment cannot clash.
+    for (const t of d.deployments.filter(
+      (t) => ['PLANNED', 'DISPATCHED'].includes(t.status) && (t.vehicleId === vehicle.id || t.driverId === assignment.driverId),
+    ))
+      await http.patch(`/deployments/${t.id}/status`, { status: 'CANCELLED', reason: 'test fixture' })
+    const missing = await fail(http.post('/deployments', { vehicleId: vehicle.id, driverId: assignment.driverId }))
+    expect(missing.status).toBe(400)
+    expect(missing.fieldErrorMap.purchaseOrderId).toBeDefined()
+    const trip = await http.post('/deployments', {
+      companyId: company.id,
       vehicleId: vehicle.id,
       driverId: assignment.driverId,
+      institution: lpo.institution,
+      purchaseOrderId: lpo.id,
+      effectiveDays: 3,
+      tariffId: d.tariffs[0].id,
+      owner: vehicle.owner,
       startLocation: 'Depot',
       destination: 'Airport',
       scheduledStartAt: new Date(Date.now() + 10 * 3600_000).toISOString(),
@@ -111,13 +128,21 @@ describe('mock API behaves like the Spring Boot contract', () => {
       passengers: 2,
     })
     expect(trip.status).toBe('PLANNED')
-    await http.patch(`/trips/${trip.id}/status`, { status: 'DISPATCHED' })
-    const started = await http.patch(`/trips/${trip.id}/status`, { status: 'IN_PROGRESS' })
+    // Numbered per company and series: GSL1/00001/2026 style, with the LPO date and amount coming from the linked order.
+    expect(trip.deploymentNumber).toMatch(
+      new RegExp(`^GSL${vehicle.owner === 'SUBCONTRACTOR' ? 2 : 1}/\\d{5}/${new Date().getFullYear()}$`),
+    )
+    expect(trip.lpoNumber).toBe(lpo.lpoNumber)
+    expect(trip.lpoDate).toBe(lpo.receivedOn)
+    expect(trip.amount).toBe(d.tariffs[0].dailyRate * 3)
+    if (vehicle.owner !== 'SUBCONTRACTOR') expect(trip.driverMission).toBe(5_000 + 2 * 15_000)
+    await http.patch(`/deployments/${trip.id}/status`, { status: 'DISPATCHED' })
+    const started = await http.patch(`/deployments/${trip.id}/status`, { status: 'IN_PROGRESS' })
     expect(started.startOdometer).toBe(vehicle.odometerKm)
     expect(getDb().vehicles.find((v) => v.id === vehicle.id).status).toBe('ON_TRIP')
-    const badOdo = await fail(http.patch(`/trips/${trip.id}/status`, { status: 'COMPLETED', endOdometer: started.startOdometer - 5 }))
+    const badOdo = await fail(http.patch(`/deployments/${trip.id}/status`, { status: 'COMPLETED', endOdometer: started.startOdometer - 5 }))
     expect(badOdo.status).toBe(400)
-    const done = await http.patch(`/trips/${trip.id}/status`, { status: 'COMPLETED', endOdometer: started.startOdometer + 42 })
+    const done = await http.patch(`/deployments/${trip.id}/status`, { status: 'COMPLETED', endOdometer: started.startOdometer + 42 })
     expect(done.distanceKm).toBe(42)
     expect(done.durationMinutes).toBeGreaterThanOrEqual(0)
     expect(getDb().vehicles.find((v) => v.id === vehicle.id).odometerKm).toBe(started.startOdometer + 42)
@@ -354,7 +379,7 @@ describe('driver workflow: fuel allocations, own trips and vehicle reports', () 
 
   it('the driver role holds only the three driver permissions and lands on its own workspace data', async () => {
     const driver = await signIn('driver@limoz.rw')
-    expect(driver.permissions.sort()).toEqual(['FUEL_SUBMIT', 'MAINTENANCE_REPORT', 'TRIP_START'])
+    expect(driver.permissions.sort()).toEqual(['DEPLOYMENT_START', 'FUEL_SUBMIT', 'MAINTENANCE_REPORT'])
     expect(driver.driverId).toBe(getDb().drivers[0].id)
     expect(driver.driverName).toBe(getDb().drivers[0].fullName)
     const dashboard = await fail(http.get('/dashboard/summary'))
@@ -362,9 +387,9 @@ describe('driver workflow: fuel allocations, own trips and vehicle reports', () 
     const ws = await http.get('/me/workspace')
     expect(ws.driver.id).toBe(driver.driverId)
     expect(ws.vehicle).not.toBeNull()
-    expect(ws.trips.upcoming.some((t) => t.status === 'DISPATCHED')).toBe(true)
+    expect(ws.deployments.upcoming.some((t) => t.status === 'DISPATCHED')).toBe(true)
     expect(ws.fuelAllocations.some((a) => a.status === 'PENDING')).toBe(true)
-    for (const t of [...ws.trips.upcoming, ...ws.trips.recent]) expect(t.driverId).toBe(driver.driverId)
+    for (const t of [...ws.deployments.upcoming, ...ws.deployments.recent]) expect(t.driverId).toBe(driver.driverId)
   })
 
   it('officer allocates fuel, driver submits the receipt, officer verifies it into a fuel transaction', async () => {
@@ -391,7 +416,7 @@ describe('driver workflow: fuel allocations, own trips and vehicle reports', () 
     expect(allocation.driverId).toBe(demoDriver.id) // defaults to the vehicle's current driver
     expect(allocation.requestNumber).toMatch(/^FA-\d{4}-\d{4}$/)
     expect(d.notifications.length - notifBefore).toBe(1) // the linked driver account
-    expect(d.notifications[0]).toMatchObject({ link: '/my-day' })
+    expect(d.notifications[0]).toMatchObject({ link: '/my-trips' })
     const duplicate = await fail(http.post('/fuel/allocations', { vehicleId: vehicle.id, litres: 20 }))
     expect(duplicate.status).toBe(409)
 
@@ -465,27 +490,28 @@ describe('driver workflow: fuel allocations, own trips and vehicle reports', () 
   it('a driver starts and completes only their own dispatched trips', async () => {
     const driver = await signIn('driver@limoz.rw')
     const d = getDb()
-    const own = d.trips.find((t) => t.driverId === driver.driverId && t.status === 'DISPATCHED')
-    const others = d.trips.find((t) => t.driverId !== driver.driverId && t.status === 'DISPATCHED')
-    const list = await http.get('/trips', { params: { size: 100 } })
+    const own = d.deployments.find((t) => t.driverId === driver.driverId && t.status === 'DISPATCHED')
+    const others = d.deployments.find((t) => t.driverId !== driver.driverId && t.status === 'DISPATCHED')
+    const list = await http.get('/deployments', { params: { size: 100 } })
     expect(list.content.every((t) => t.driverId === driver.driverId)).toBe(true)
-    const peek = await fail(http.get(`/trips/${others.id}`))
+    const peek = await fail(http.get(`/deployments/${others.id}`))
     expect(peek.status).toBe(403)
-    const startOthers = await fail(http.patch(`/trips/${others.id}/status`, { status: 'IN_PROGRESS' }))
+    const startOthers = await fail(http.patch(`/deployments/${others.id}/status`, { status: 'IN_PROGRESS' }))
     expect(startOthers.status).toBe(403)
-    const cancel = await fail(http.patch(`/trips/${own.id}/status`, { status: 'CANCELLED', reason: 'Nope' }))
+    const cancel = await fail(http.patch(`/deployments/${own.id}/status`, { status: 'CANCELLED', reason: 'Nope' }))
     expect(cancel.status).toBe(403)
-    const plan = await fail(http.post('/trips', {}))
+    const plan = await fail(http.post('/deployments', {}))
     expect(plan.status).toBe(403)
 
-    const started = await http.patch(`/trips/${own.id}/status`, { status: 'IN_PROGRESS' })
+    const started = await http.patch(`/deployments/${own.id}/status`, { status: 'IN_PROGRESS' })
     expect(started.status).toBe('IN_PROGRESS')
     expect(d.vehicles.find((v) => v.id === own.vehicleId).status).toBe('ON_TRIP')
     const ws = await http.get('/me/workspace')
-    expect(ws.trips.active.id).toBe(own.id)
-    const done = await http.patch(`/trips/${own.id}/status`, { status: 'COMPLETED', endOdometer: started.startOdometer + 18 })
+    expect(ws.deployments.active.id).toBe(own.id)
+    expect(started.departureRecordedBy).toMatchObject({ id: driver.id })
+    const done = await http.patch(`/deployments/${own.id}/status`, { status: 'COMPLETED', endOdometer: started.startOdometer + 18 })
     expect(done.distanceKm).toBe(18)
-    expect(d.audit[0]).toMatchObject({ action: 'STATUS_CHANGE', entityType: 'TRIP', userId: driver.id })
+    expect(d.audit[0]).toMatchObject({ action: 'STATUS_CHANGE', entityType: 'DEPLOYMENT', userId: driver.id })
   })
 
   it('a driver reports the vehicle they drive and the workshop is notified', async () => {
@@ -582,7 +608,7 @@ describe('reference data is editable by administrators and feeds every dropdown'
       'incidentTypes',
       'documentTypes',
       'employmentStatuses',
-      'tripStatuses',
+      'deploymentStatuses',
     ])
       expect(keys).toContain(k)
     const station = await http.post('/lookups/fuelStations/items', { label: 'Kobil Nyamirambo' })
@@ -636,10 +662,10 @@ describe('reference data is editable by administrators and feeds every dropdown'
     expect((await http.get('/reference')).incidentTypes.some((t) => t.value === 'THEFT')).toBe(false)
     expect(getDb().lookups.some((r) => r.list === 'incidentTypes' && r.value === 'THEFT')).toBe(true)
 
-    const statuses = await http.get('/lookups/tripStatuses')
-    const noAdd = await fail(http.post('/lookups/tripStatuses/items', { label: 'Paused' }))
+    const statuses = await http.get('/lookups/deploymentStatuses')
+    const noAdd = await fail(http.post('/lookups/deploymentStatuses/items', { label: 'Paused' }))
     expect(noAdd.status).toBe(422)
-    const noRetire = await fail(http.patch(`/lookups/tripStatuses/items/${statuses.items[0].id}/status`, { active: false }))
+    const noRetire = await fail(http.patch(`/lookups/deploymentStatuses/items/${statuses.items[0].id}/status`, { active: false }))
     expect(noRetire.status).toBe(422)
 
     const order = await http.put('/lookups/fuelStations/order', {
@@ -647,5 +673,219 @@ describe('reference data is editable by administrators and feeds every dropdown'
     })
     expect(order.items[0].label).toBe('Depot bowser (Gikondo)')
     expect(getDb().audit[0]).toMatchObject({ entityType: 'REFERENCE_LIST' })
+  })
+})
+
+describe('commerce, deployments, gate and company stock (fleet operations changes)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    useAuthStore.getState().clearSession()
+    resetDb()
+  })
+
+  it('an account manager registers LPOs; duplicates per institution are refused and amendments are audited', async () => {
+    const me = await signIn('accounts@limoz.rw')
+    expect(me.permissions).toContain('ORDER_MANAGE')
+    const managers = await http.get('/purchase-orders/account-managers')
+    expect(managers.some((m) => m.id === me.id)).toBe(true)
+    const body = {
+      lpoNumber: 'NO.102/F.Y.25.27',
+      institution: 'Bank of Kigali',
+      accountManagerId: me.id,
+      receivedOn: '2026-10-01',
+      durationDays: 30,
+      description: 'Vehicle for the Gakenke mission',
+      amount: 463_500,
+      currency: 'RWF',
+    }
+    const created = await http.post('/purchase-orders', body)
+    expect(created.status).toBe('OPEN')
+    expect(created.expiresOn).toBe('2026-10-31')
+    expect(created.originalAmount).toBe(463_500)
+    const dup = await fail(http.post('/purchase-orders', body))
+    expect(dup.status).toBe(409)
+    const other = await http.post('/purchase-orders', { ...body, institution: 'MTN Rwanda' })
+    expect(other.id).not.toBe(created.id)
+    const amended = await http.put(`/purchase-orders/${created.id}`, { ...body, amount: 600_000 })
+    expect(amended.amount).toBe(600_000)
+    expect(amended.originalAmount).toBe(463_500)
+    expect(getDb().audit[0]).toMatchObject({ entityType: 'PURCHASE_ORDER', action: 'UPDATE' })
+    expect(getDb().audit[0].changes.some((c) => c.field === 'amount' && c.from === 463_500 && c.to === 600_000)).toBe(true)
+    // Account managers cannot register deployments or touch stock.
+    const forbidden = await fail(http.post('/deployments', {}))
+    expect(forbidden.status).toBe(403)
+  })
+
+  it('deployments are numbered per company and series, replace keeps history, and road maps are recorded', async () => {
+    await signIn('fleet@limoz.rw')
+    const d = getDb()
+    const gorilland = d.companies.find((c) => c.code === 'GORILLAND')
+    const lpo = d.purchaseOrders.find((o) => !o.closedAt)
+    const freeVehicles = d.vehicles.filter(
+      (v) =>
+        !v.archived &&
+        v.status === 'AVAILABLE' &&
+        v.owner !== 'SUBCONTRACTOR' &&
+        !d.assignments.some((a) => a.vehicleId === v.id && a.status === 'ACTIVE'),
+    )
+    const freeDrivers = d.drivers.filter(
+      (x) => !x.archived && x.status === 'AVAILABLE' && !d.assignments.some((a) => a.driverId === x.id && a.status === 'ACTIVE'),
+    )
+    const [v1, v2] = freeVehicles
+    const [dr1] = freeDrivers
+    // Clear whatever the seed planned for these resources so the new deployments cannot clash.
+    for (const t of d.deployments.filter(
+      (t) => ['PLANNED', 'DISPATCHED'].includes(t.status) && ([v1.id, v2.id].includes(t.vehicleId) || t.driverId === dr1.id),
+    ))
+      await http.patch(`/deployments/${t.id}/status`, { status: 'CANCELLED', reason: 'test fixture' })
+    const start = new Date(Date.now() + 2 * 3600_000).toISOString()
+    const make = (vehicle, driver, extra = {}) =>
+      http.post('/deployments', {
+        companyId: gorilland.id,
+        vehicleId: vehicle.id,
+        driverId: driver.id,
+        institution: lpo.institution,
+        purchaseOrderId: lpo.id,
+        effectiveDays: 4,
+        tariffId: d.tariffs[1].id,
+        owner: vehicle.owner,
+        startLocation: 'Kacyiru office',
+        destination: 'Gakenke',
+        scheduledStartAt: start,
+        purpose: 'Field mission',
+        passengers: 3,
+        ...extra,
+      })
+    const a = await make(v1, dr1)
+    expect(a.deploymentNumber).toMatch(/^GSL1\/\d{5}\/\d{4}$/)
+    expect(a.scheduledEndAt.slice(0, 10)).toBe(new Date(new Date(start).getTime() + 4 * 86_400_000).toISOString().slice(0, 10))
+    // A second deployment of the same vehicle inside the period is refused.
+    const clash = await fail(make(v1, freeDrivers[1], { scheduledStartAt: new Date(Date.now() + 26 * 3600_000).toISOString() }))
+    expect(clash.status).toBe(422)
+    // The LPO shows the committed amount.
+    const order = await http.get(`/purchase-orders/${lpo.id}`)
+    expect(order.committedAmount).toBeGreaterThanOrEqual(a.amount)
+    // Road maps need a dispatched deployment and are recorded as revisions.
+    const early = await fail(http.post(`/deployments/${a.id}/road-map`))
+    expect(early.status).toBe(422)
+    await http.patch(`/deployments/${a.id}/status`, { status: 'DISPATCHED' })
+    const rm = await http.post(`/deployments/${a.id}/road-map`)
+    expect(rm.revision).toBe(1)
+    const payload = await http.get(`/deployments/${a.id}/road-map`)
+    expect(payload.company.numberPrefix).toBe('GSL')
+    expect(payload.rows.length).toBeGreaterThanOrEqual(4)
+    expect(payload.rows[0].date).toBe(start.slice(0, 10))
+    expect(payload.history).toHaveLength(1)
+    // Replacing swaps the vehicle: the original is REPLACED, the replacement is dispatched under the same LPO.
+    const r = await http.post(`/deployments/${a.id}/replace`, { vehicleId: v2.id, reason: 'Brake warning light' })
+    expect(r.original.status).toBe('REPLACED')
+    expect(r.original.replacedById).toBe(r.replacement.id)
+    expect(r.replacement.status).toBe('DISPATCHED')
+    expect(r.replacement.purchaseOrderId).toBe(lpo.id)
+    expect(r.replacement.replacesNumber).toBe(a.deploymentNumber)
+    expect(d.vehicles.find((v) => v.id === v1.id).status).toBe('AVAILABLE')
+    const again = await fail(http.post(`/deployments/${a.id}/replace`, { vehicleId: v1.id, reason: 'x' }))
+    expect(again.status).toBe(422)
+  })
+
+  it('the gatekeeper records departures and returns but cannot dispatch or cancel', async () => {
+    const gate = await signIn('gate@limoz.rw')
+    expect(gate.permissions).toContain('GATE_RECORD')
+    const board = await http.get('/gate/board')
+    expect(board.departures.length).toBeGreaterThan(0)
+    const t = board.departures[0]
+    const nope = await fail(http.patch(`/deployments/${t.id}/status`, { status: 'CANCELLED', reason: 'x' }))
+    expect(nope.status).toBe(403)
+    const vehicle = getDb().vehicles.find((v) => v.id === t.vehicleId)
+    const low = await fail(http.patch(`/deployments/${t.id}/status`, { status: 'IN_PROGRESS', startOdometer: vehicle.odometerKm - 10 }))
+    expect(low.status).toBe(400)
+    const out = await http.patch(`/deployments/${t.id}/status`, { status: 'IN_PROGRESS', startOdometer: vehicle.odometerKm + 3 })
+    expect(out.status).toBe('IN_PROGRESS')
+    expect(out.departureRecordedBy).toMatchObject({ id: gate.id })
+    const lower = await fail(http.patch(`/deployments/${t.id}/status`, { status: 'COMPLETED', endOdometer: out.startOdometer - 1 }))
+    expect(lower.status).toBe(400)
+    const back = await http.patch(`/deployments/${t.id}/status`, { status: 'COMPLETED', endOdometer: out.startOdometer + 120 })
+    expect(back.distanceKm).toBe(120)
+    expect(back.returnRecordedBy).toMatchObject({ id: gate.id })
+    expect(getDb().audit[0]).toMatchObject({ entityType: 'DEPLOYMENT', action: 'STATUS_CHANGE', userId: gate.id })
+  })
+
+  it('the driver mission report lists internal deployments per driver with the mission due amount', async () => {
+    await signIn('management@limoz.rw')
+    const d = getDb()
+    const gsl = d.companies.find((c) => c.code === 'GORILLAND')
+    const report = await http.get('/reports/driver-missions', { params: { from: '2026-09-01', to: '2026-12-31', companyId: gsl.id } })
+    expect(report.title).toMatch(/^GSL DRIVERS MISSION FROM/)
+    expect(report.columns.map((c) => c.key)).toEqual(expect.arrayContaining(['deploymentNumber', 'effectiveDays', 'missionDue']))
+    expect(report.rows.length).toBeGreaterThan(0)
+    for (const r of report.rows) {
+      expect(r.deploymentNumber.startsWith('GSL1/')).toBe(true)
+      expect(r.missionDue).toBe(5_000 + (r.effectiveDays - 1) * 15_000)
+    }
+    expect(report.totals.missionDue).toBe(report.rows.reduce((s, r) => s + r.missionDue, 0))
+    expect(report.summary.kpis.some((k) => k.key === 'due')).toBe(true)
+    const driverId = report.rows[0] && d.deployments.find((t) => t.deploymentNumber === report.rows[0].deploymentNumber).driverId
+    const one = await http.get('/reports/driver-missions', {
+      params: { from: '2026-09-01', to: '2026-12-31', companyId: gsl.id, driverId },
+    })
+    expect(one.rows.every((r) => r.driver === report.rows[0].driver)).toBe(true)
+  })
+
+  it('stock is kept per company: receipts and issues are movements, transfers are approved and land on both sides', async () => {
+    await signIn('workshop@limoz.rw')
+    const d = getDb()
+    const limoz = d.companies.find((c) => c.code === 'LIMOZ')
+    const gsl = d.companies.find((c) => c.code === 'GORILLAND')
+    const created = await http.post('/spare-parts', {
+      companyId: limoz.id,
+      partNumber: 'BP-TEST-001',
+      name: 'Brake pads (test)',
+      category: 'Brakes',
+      unit: 'set',
+      supplier: 'CFAO Motors',
+      unitCost: 85_000,
+      minimumStock: 2,
+      currentStock: 5,
+      reference: 'GRN-1',
+    })
+    expect(created.companyName).toBe('LIMOZ')
+    expect(created.currentStock).toBe(5)
+    const dup = await fail(http.post('/spare-parts', { ...created, currentStock: 1 }))
+    expect(dup.status).toBe(409)
+    // The same number is fine in another company's stock.
+    const other = await http.post('/spare-parts', { ...created, companyId: gsl.id, currentStock: 0 })
+    expect(other.companyName).toBe('Gorilland')
+    const issued = await http.post(`/spare-parts/${created.id}/movements`, { type: 'ISSUE', quantity: 2, reference: 'WO-1' })
+    expect(issued.part.currentStock).toBe(3)
+    expect(issued.movement.quantity).toBe(-2)
+    const noNote = await fail(http.post(`/spare-parts/${created.id}/transfer`, { toCompanyId: gsl.id, quantity: 1 }))
+    expect(noNote.status).toBe(400)
+    const tooMany = await fail(http.post(`/spare-parts/${created.id}/transfer`, { toCompanyId: gsl.id, quantity: 10, note: 'ok' }))
+    expect(tooMany.status).toBe(422)
+    const transfer = await http.post(`/spare-parts/${created.id}/transfer`, {
+      toCompanyId: gsl.id,
+      quantity: 2,
+      note: 'Approved by workshop manager',
+    })
+    expect(transfer.source.currentStock).toBe(1)
+    expect(transfer.destination.id).toBe(other.id)
+    expect(transfer.destination.currentStock).toBe(2)
+    expect(transfer.movements.map((m) => m.type).sort()).toEqual(['TRANSFER_IN', 'TRANSFER_OUT'])
+    const movements = await http.get('/stock-movements', { params: { partId: created.id, size: 50 } })
+    expect(movements.content.map((m) => m.type)).toEqual(['TRANSFER_OUT', 'ISSUE', 'RECEIPT'])
+    // A company-scoped account only sees its own stock.
+    useAuthStore.getState().clearSession()
+    await signIn('admin@limoz.rw')
+    const admin = getDb().users.find((u) => u.email === 'admin@limoz.rw')
+    const tech = getDb().users.find((u) => u.email === 'technician@limoz.rw')
+    await http.put(`/users/${tech.id}`, { ...tech, roleId: tech.roleId, departmentId: tech.departmentId, companyId: gsl.id })
+    void admin
+    useAuthStore.getState().clearSession()
+    const scoped = await signIn('technician@limoz.rw')
+    expect(scoped.companyId).toBe(gsl.id)
+    const list = await http.get('/spare-parts', { params: { size: 100 } })
+    expect(list.content.every((p) => p.companyId === gsl.id)).toBe(true)
+    const peek = await fail(http.get(`/spare-parts/${created.id}`))
+    expect(peek.status).toBe(403)
   })
 })

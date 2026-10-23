@@ -61,7 +61,9 @@ export default function ReferenceDataPage() {
       {lists.isError ? (
         <ErrorState error={lists.error} onRetry={lists.refetch} />
       ) : (
-        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { lg: '280px minmax(0, 1fr)' }, alignItems: 'start' }}>
+        <Box
+          sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: '280px minmax(0, 1fr)' }, alignItems: 'start' }}
+        >
           <Card>
             {lists.isLoading ? (
               <Box sx={{ p: 2 }}>

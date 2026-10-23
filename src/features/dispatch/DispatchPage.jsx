@@ -75,7 +75,7 @@ export default function DispatchPage() {
     <Stack spacing={2.5}>
       <PageHeader
         title="Dispatch"
-        description={`Departures, returns, running trips and the resources available on ${formatDate(state.date)}.`}
+        description={`Departures, returns, vehicles out and the resources available on ${formatDate(state.date)}.`}
         actions={
           <>
             <Button icon={RefreshIcon} variant="ghost" onClick={() => board.refetch()} loading={board.isFetching && !board.isLoading}>
@@ -86,9 +86,9 @@ export default function DispatchPage() {
                 Assign driver
               </Button>
             ) : null}
-            {can('TRIP_MANAGE') ? (
-              <Button variant="primary" icon={AddIcon} to="/trips/new">
-                Plan trip
+            {can('DEPLOYMENT_MANAGE') ? (
+              <Button variant="primary" icon={AddIcon} to="/deployments/new">
+                New deployment
               </Button>
             ) : null}
           </>
@@ -142,15 +142,17 @@ export default function DispatchPage() {
         />
       </StatGrid>
 
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xl: 'repeat(3, minmax(0, 1fr))' } }}>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', xl: 'repeat(3, minmax(0, 1fr))' } }}>
         <Stack spacing={2} sx={{ gridColumn: { xl: 'span 2' } }}>
           <Lane
-            title="Current trips"
+            title="Vehicles out"
             description="In progress right now"
             loading={board.isLoading}
             items={b?.currentTrips}
-            empty="No trips in progress."
-            render={(t) => <TripRow trip={t} onClick={() => navigate(`/trips/${t.id}`)} timeLabel={`since ${formatTime(t.startedAt)}`} />}
+            empty="No vehicles out."
+            render={(t) => (
+              <TripRow trip={t} onClick={() => navigate(`/deployments/${t.id}`)} timeLabel={`since ${formatTime(t.startedAt)}`} />
+            )}
           />
           <Lane
             title="Departures"
@@ -158,7 +160,7 @@ export default function DispatchPage() {
             loading={board.isLoading}
             items={b?.departures}
             empty="No departures scheduled."
-            render={(t) => <TripRow trip={t} onClick={() => navigate(`/trips/${t.id}`)} timeLabel={formatTime(t.scheduledStartAt)} />}
+            render={(t) => <TripRow trip={t} onClick={() => navigate(`/deployments/${t.id}`)} timeLabel={formatTime(t.scheduledStartAt)} />}
           />
           <Lane
             title="Upcoming bookings"
@@ -319,10 +321,10 @@ function TripRow({ trip: t, onClick, timeLabel }) {
         </Box>
         <Box component="span" sx={{ display: 'block', ...truncate, fontSize: 12.5, color: 'text.muted' }}>
           {t.startLocation} → {t.destination}
-          {t.customerName ? ` · ${t.customerName}` : ''}
+          {t.institution ? ` · ${t.institution}` : ''}
         </Box>
       </Box>
-      <StatusBadge kind="trip" value={t.status} size="sm" />
+      <StatusBadge kind="deployment" value={t.status} size="sm" />
     </ButtonBase>
   )
 }

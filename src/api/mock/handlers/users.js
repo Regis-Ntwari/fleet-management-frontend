@@ -44,6 +44,9 @@ function validate(input, { existing } = {}) {
       if (holder) errors.push({ field: 'driverId', message: `${driver.fullName} is already linked to ${holder.email}.` })
     }
   }
+  // Optional company: restricts stock screens to that company's parts and movements.
+  const companyId = input.companyId ? Number(input.companyId) : null
+  if (companyId && !d.companies.some((c) => c.id === companyId)) errors.push({ field: 'companyId', message: 'Unknown company.' })
   if (errors.length) throw badRequest('Please correct the highlighted fields.', errors)
   return {
     firstName: input.firstName.trim(),
@@ -53,6 +56,7 @@ function validate(input, { existing } = {}) {
     roleId,
     departmentId,
     driverId,
+    companyId,
   }
 }
 
@@ -65,6 +69,7 @@ get(
       .filter((u) => !query.roleId || u.roleId === Number(query.roleId))
       .filter((u) => !query.role || u.role === query.role)
       .filter((u) => !query.departmentId || u.departmentId === Number(query.departmentId))
+      .filter((u) => !query.companyId || u.companyId === Number(query.companyId))
       .filter((u) => query.active === undefined || String(u.active) === query.active)
     return paginate(list, query, 'lastName,asc')
   },

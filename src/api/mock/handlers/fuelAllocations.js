@@ -59,7 +59,7 @@ const assertOwn = (row, user) => {
 }
 
 const notifyDriver = (row, title, body, actorId) =>
-  pushNotification(userIdsForDriver(row.driverId), { title, body, link: '/my-day', kind: 'WORKFLOW' }, actorId)
+  pushNotification(userIdsForDriver(row.driverId), { title, body, link: '/my-trips', kind: 'WORKFLOW' }, actorId)
 
 const notifyOfficers = (row, title, body, actorId) => {
   const d = getDb()

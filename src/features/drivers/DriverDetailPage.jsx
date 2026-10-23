@@ -89,7 +89,7 @@ export default function DriverDetailPage() {
     can('ASSIGNMENT_MANAGE') &&
       d.currentVehicleId && { label: 'End vehicle assignment', icon: PersonRemoveIcon, onSelect: () => setEndOpen(true) },
     can('DRIVER_MANAGE') && { label: 'Change status', icon: SwapHorizIcon, onSelect: () => setStatusOpen(true) },
-    can('TRIP_MANAGE') && { label: 'Plan a trip', icon: RouteIcon, onSelect: () => navigate(`/trips/new?driverId=${d.id}`) },
+    can('DEPLOYMENT_MANAGE') && { label: 'New deployment', icon: RouteIcon, onSelect: () => navigate(`/deployments/new?driverId=${d.id}`) },
     can('DRIVER_MANAGE') && { separator: true },
     can('DRIVER_MANAGE') && { label: 'Archive driver', icon: ArchiveIcon, tone: 'danger', onSelect: () => setArchiveOpen(true) },
   ].filter(Boolean)
@@ -166,15 +166,15 @@ export default function DriverDetailPage() {
       {tab === 'trips' ? (
         <Sub
           queryKey={['drivers', 'trips', d.id]}
-          url={`/drivers/${d.id}/trips`}
-          onRowClick={(t) => navigate(`/trips/${t.id}`)}
+          url={`/drivers/${d.id}/deployments`}
+          onRowClick={(t) => navigate(`/deployments/${t.id}`)}
           columns={[
             {
-              key: 'tripNumber',
+              key: 'deploymentNumber',
               header: 'Trip',
               render: (t) => (
                 <Box component="span" sx={{ fontWeight: 500 }}>
-                  {t.tripNumber}
+                  {t.deploymentNumber}
                 </Box>
               ),
             },
@@ -182,7 +182,7 @@ export default function DriverDetailPage() {
             { key: 'vehiclePlate', header: 'Vehicle', hideBelow: 'sm' },
             { key: 'route', header: 'Route', render: (t) => `${t.startLocation} → ${t.destination}`, hideBelow: 'md' },
             { key: 'distanceKm', header: 'Distance', align: 'right', render: (t) => formatKm(t.distanceKm) },
-            { key: 'status', header: 'Status', render: (t) => <StatusBadge kind="trip" value={t.status} size="sm" /> },
+            { key: 'status', header: 'Status', render: (t) => <StatusBadge kind="deployment" value={t.status} size="sm" /> },
           ]}
           empty={<EmptyState icon={RouteIcon} title="No trips yet" compact />}
         />
@@ -329,7 +329,7 @@ function Overview({ driver: d }) {
         />
         <Stat label="Rating" value={d.rating ? d.rating.toFixed(1) : '—'} icon={StarIcon} loading={perf.isLoading} hint="out of 5" />
       </StatGrid>
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xl: 'repeat(3, minmax(0, 1fr))' } }}>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', xl: 'repeat(3, minmax(0, 1fr))' } }}>
         <Card sx={{ gridColumn: { xl: 'span 2' } }}>
           <CardHeader title="Profile" />
           <CardBody>

@@ -57,6 +57,8 @@ const schema = z.object({
   insurancePolicyNumber: optionalText,
   insuranceExpiry: optionalText,
   department: optionalText,
+  owner: z.string().min(1, 'Choose the owner'),
+  ownerName: optionalText,
   status: z.string().min(1, 'Choose a status'),
   notes: optionalText,
   odometerCorrectionReason: optionalText,
@@ -83,6 +85,8 @@ const EMPTY = {
   insurancePolicyNumber: '',
   insuranceExpiry: '',
   department: '',
+  owner: 'LIMOZ',
+  ownerName: '',
   status: 'AVAILABLE',
   notes: '',
   odometerCorrectionReason: '',
@@ -96,6 +100,7 @@ export default function VehicleFormPage() {
   const fuelTypes = useOptions('fuelType')
   const transmissions = useOptions('transmission')
   const statuses = useOptions('vehicle')
+  const owners = useOptions('vehicleOwner')
   const departments = useQuery({ queryKey: ['vehicles', 'departments'], queryFn: () => http.get('/vehicles/departments') })
   const existing = useQuery({ queryKey: ['vehicles', 'detail', id], queryFn: () => http.get(`/vehicles/${id}`), enabled: isEdit })
   const [serverError, setServerError] = useState(null)
@@ -292,6 +297,26 @@ export default function VehicleFormPage() {
         <Field label="Department" htmlFor="department" error={err('department')}>
           <SuggestInput id="department" suggestions={departments.data ?? []} {...register('department')} />
         </Field>
+        <Field
+          label="Owner"
+          htmlFor="owner"
+          required
+          error={err('owner')}
+          hint="Decides the deployment series: own fleet is series 1, subcontracted vehicles series 2."
+        >
+          <Select id="owner" {...register('owner')} invalid={!!errors.owner}>
+            {owners.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        {watch('owner') === 'SUBCONTRACTOR' ? (
+          <Field label="Subcontractor" htmlFor="ownerName" required error={err('ownerName')}>
+            <Input id="ownerName" {...register('ownerName')} placeholder="Company that owns the vehicle" invalid={!!errors.ownerName} />
+          </Field>
+        ) : null}
       </FormSection>
 
       <FormSection

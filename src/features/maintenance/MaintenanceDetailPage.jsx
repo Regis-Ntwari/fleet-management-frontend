@@ -169,7 +169,7 @@ export default function MaintenanceDetailPage() {
         <Stat label="Other" value={formatCurrency(m.otherCost, { compact: true })} />
         <Stat label="Total" value={formatCurrency(m.totalCost, { compact: true })} hint="parts + labour + other" />
       </StatGrid>
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xl: 'repeat(3, minmax(0, 1fr))' } }}>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', xl: 'repeat(3, minmax(0, 1fr))' } }}>
         <Card sx={{ gridColumn: { xl: 'span 2' } }}>
           <CardHeader title="Job details" />
           <CardBody>

@@ -1,7 +1,7 @@
 import { get, post } from '../router'
 import { getDb, persist } from '../db'
 import { badRequest, unauthorized } from '../core'
-import { departmentById, driverOfUser, permissionsOf, recordAudit, roleById, toUser } from '../mappers'
+import { companyById, departmentById, driverOfUser, permissionsOf, recordAudit, roleById, toUser } from '../mappers'
 const ACCESS_TTL_SECONDS = 30 * 60
 const REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60
 const revoked = new Set()
@@ -42,6 +42,9 @@ export function toAuthUser(u) {
     // Driver self-service screens act for this driver profile; null for office staff.
     driverId: driver?.id ?? null,
     driverName: driver?.fullName ?? null,
+    // Company-scoped accounts only see their own company's stock.
+    companyId: u.companyId ?? null,
+    companyName: companyById(u.companyId)?.name ?? null,
     permissions: permissionsOf(u),
   }
 }

@@ -25,7 +25,7 @@ import { Stat, StatGrid } from '@/components/ui/Stat'
 import { Tabs, useActiveTab } from '@/components/ui/Tabs'
 import { EmptyState, ErrorState, InlineAlert, LinkText, Skeleton } from '@/components/ui/Feedback'
 import { formatCurrency, formatDate, formatKm, formatLitres, formatSmartDateTime, formatTime } from '@/utils/format'
-import { TripTransitionDialog } from '@/features/trips/TripTransitionDialog'
+import { DeploymentTransitionDialog } from '@/features/deployments/DeploymentTransitionDialog'
 import { FuelSubmitDialog } from '@/features/fuel/FuelSubmitDialog'
 import { ReportProblemDialog } from '@/features/maintenance/ReportProblemDialog'
 
@@ -33,8 +33,8 @@ const OPEN_ALLOCATION = ['PENDING', 'RETURNED', 'SUBMITTED']
 const ACTIONABLE_ALLOCATION = ['PENDING', 'RETURNED']
 const OPEN_MAINTENANCE = ['REPORTED', 'INSPECTION', 'APPROVED', 'IN_PROGRESS', 'WAITING_FOR_PARTS']
 const TABS = [
-  { key: 'today', label: 'My day', icon: TodayIcon },
-  { key: 'trips', label: 'Trips', icon: RouteIcon },
+  { key: 'today', label: 'Today', icon: TodayIcon },
+  { key: 'trips', label: 'Deployments', icon: RouteIcon },
   { key: 'fuel', label: 'Fuel', icon: LocalGasStationIcon },
 ]
 
@@ -49,7 +49,7 @@ const endOfToday = () => {
  * they are dispatched on, fill up against fuel allocations and submit the receipt, and report
  * the vehicle for maintenance. Scope comes from the driver profile linked to the account.
  *
- * Three tabs: "My day" shows only what needs the driver's attention now (the trip in progress,
+ * Three tabs: "Today" shows only what needs the driver's attention now (the trip in progress,
  * trips due today or overdue, fuel to collect or resubmit, open problems on the vehicle),
  * while "Trips" and "Fuel" list everything ahead of them and their history.
  */
@@ -77,7 +77,7 @@ export default function MyDayPage() {
   if (!driver)
     return (
       <Stack spacing={2.5}>
-        <PageHeader title="My day" description="Your trips, fuel allocations and vehicle for today." />
+        <PageHeader title="My trips" description="Your deployments, fuel allocations and vehicle for today." />
         <InlineAlert tone="warning" title="No driver profile linked to your account">
           Your sign-in is not linked to a driver profile, so there is nothing to show here yet. Ask IT to link your account to your driver
           record under Administration → Users.
@@ -85,9 +85,9 @@ export default function MyDayPage() {
       </Stack>
     )
 
-  const active = w.trips.active
-  const upcoming = w.trips.upcoming
-  const history = w.trips.history ?? w.trips.recent
+  const active = w.deployments.active
+  const upcoming = w.deployments.upcoming
+  const history = w.deployments.history ?? w.deployments.recent
   const cutoff = endOfToday()
   // Trips due by the end of today, including dispatched trips that should already have left.
   const todayTrips = upcoming.filter((t) => new Date(t.scheduledStartAt) <= cutoff)
@@ -98,7 +98,7 @@ export default function MyDayPage() {
   const openProblems = w.maintenance.filter((m) => OPEN_MAINTENANCE.includes(m.status))
   const litresToCollect = actionableAllocations.reduce((s, a) => s + a.litresAllocated, 0)
   const attentionCount = (active ? 1 : 0) + todayTrips.length + actionableAllocations.length
-  const canStart = can('TRIP_START')
+  const canStart = can('DEPLOYMENT_START')
   const canFuel = can('FUEL_SUBMIT')
   const canReport = can('MAINTENANCE_REPORT') && Boolean(vehicle)
   const licenceTone = w.licence?.status === 'EXPIRED' ? 'danger' : w.licence?.status === 'EXPIRING_SOON' ? 'warning' : undefined
@@ -113,14 +113,14 @@ export default function MyDayPage() {
   const tripAction = (t) =>
     canStart && t.status === 'DISPATCHED' && !active ? (
       <Button size="sm" variant="primary" icon={PlayArrowIcon} onClick={() => setTripDialog({ trip: t, status: 'IN_PROGRESS' })}>
-        Start trip
+        Depart
       </Button>
     ) : canStart && t.status === 'IN_PROGRESS' ? (
       <Button size="sm" variant="primary" icon={StopIcon} onClick={() => setTripDialog({ trip: t, status: 'COMPLETED' })}>
-        Complete
+        Record return
       </Button>
     ) : t.status === 'DISPATCHED' && active ? (
-      <Typography sx={{ fontSize: 12, color: 'text.muted' }}>Finish the current trip first</Typography>
+      <Typography sx={{ fontSize: 12, color: 'text.muted' }}>Return the current vehicle first</Typography>
     ) : t.status === 'PLANNED' ? (
       <Typography sx={{ fontSize: 12, color: 'text.muted' }}>Awaiting dispatch</Typography>
     ) : null
@@ -187,7 +187,7 @@ export default function MyDayPage() {
   return (
     <Stack spacing={2.5}>
       <PageHeader
-        title="My day"
+        title="My trips"
         description={`${driver.fullName} · ${driver.employeeNumber}${vehicle ? ` · driving ${vehicle.plateNumber}` : ' · no vehicle assigned'}`}
         actions={
           canReport ? (
@@ -202,7 +202,7 @@ export default function MyDayPage() {
 
       {w.licence?.status === 'EXPIRED' ? (
         <InlineAlert tone="danger" title="Your driving licence has expired">
-          Trips cannot be started until a renewed licence is on file. Speak to the fleet office.
+          You cannot depart until a renewed licence is on file. Speak to the fleet office.
         </InlineAlert>
       ) : w.licence?.status === 'EXPIRING_SOON' ? (
         <InlineAlert tone="warning" title={`Your driving licence expires in ${w.licence.days} day${w.licence.days === 1 ? '' : 's'}`}>
@@ -212,17 +212,17 @@ export default function MyDayPage() {
       {active && tab !== 'trips' ? (
         <InlineAlert
           tone="info"
-          title={`On trip ${active.tripNumber} to ${active.destination}`}
+          title={`Out on ${active.deploymentNumber} to ${active.destination}`}
           action={
             canStart ? (
               <Button size="sm" variant="primary" icon={StopIcon} onClick={() => setTripDialog({ trip: active, status: 'COMPLETED' })}>
-                Complete trip
+                Record return
               </Button>
             ) : null
           }
         >
-          Started {formatSmartDateTime(active.startedAt)} at {formatKm(active.startOdometer)}. Complete the trip when you arrive and enter
-          the odometer.
+          Departed {formatSmartDateTime(active.startedAt)} at {formatKm(active.startOdometer)}. Record the return when you are back and
+          enter the odometer.
         </InlineAlert>
       ) : null}
 
@@ -236,7 +236,7 @@ export default function MyDayPage() {
               hint={vehicle ? `${vehicle.make} ${vehicle.model}` : 'Nothing assigned'}
             />
             <Stat
-              label="Trips today"
+              label="Deployments today"
               value={todayTrips.length + (active ? 1 : 0)}
               icon={RouteIcon}
               hint={active ? 'One in progress' : todayTrips[0] ? `Next ${formatTime(todayTrips[0].scheduledStartAt)}` : 'Nothing scheduled'}
@@ -264,7 +264,7 @@ export default function MyDayPage() {
               hint={`Until ${formatDate(driver.licenseExpiry)}`}
             />
           </StatGrid>
-          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xl: 'repeat(3, minmax(0, 1fr))' } }}>
+          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', xl: 'repeat(3, minmax(0, 1fr))' } }}>
             <Stack spacing={2} sx={{ gridColumn: { xl: 'span 2' } }}>
               {!attentionCount ? (
                 <Card>
@@ -273,13 +273,13 @@ export default function MyDayPage() {
                     title="Nothing needs your attention right now"
                     description={
                       upcoming.length
-                        ? `Your next trip is ${formatSmartDateTime(upcoming[0].scheduledStartAt)}. See the Trips tab for everything coming up.`
-                        : 'Trips the office dispatches to you and fuel it allocates will show up here.'
+                        ? `Your next deployment is ${formatSmartDateTime(upcoming[0].scheduledStartAt)}. See the Deployments tab for everything coming up.`
+                        : 'Deployments the office dispatches to you and fuel it allocates will show up here.'
                     }
                     action={
                       upcoming.length ? (
-                        <Button to="/my-day?tab=trips" icon={RouteIcon}>
-                          View upcoming trips
+                        <Button to="/my-trips?tab=trips" icon={RouteIcon}>
+                          View upcoming deployments
                         </Button>
                       ) : null
                     }
@@ -289,8 +289,8 @@ export default function MyDayPage() {
               {active || todayTrips.length ? (
                 <Card>
                   <CardHeader
-                    title="Today's trips"
-                    description="Dispatched trips can be started from here. Planned trips wait for the office to dispatch them."
+                    title="Today's deployments"
+                    description="Record your departure on dispatched deployments. Planned ones wait for the office to dispatch them."
                   />
                   <Stack component="ul" sx={{ listStyle: 'none', m: 0, p: 0 }}>
                     {[active, ...todayTrips].filter(Boolean).map((t) => (
@@ -339,18 +339,18 @@ export default function MyDayPage() {
       ) : null}
 
       {tab === 'trips' ? (
-        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xl: 'repeat(3, minmax(0, 1fr))' } }}>
+        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', xl: 'repeat(3, minmax(0, 1fr))' } }}>
           <Stack spacing={2} sx={{ gridColumn: { xl: 'span 2' } }}>
             <Card>
               <CardHeader
                 title="Upcoming"
-                description="Every trip the office has assigned to you. Dispatched trips can be started from here."
+                description="Every deployment the office has assigned to you. Record your departure on dispatched ones."
               />
               {!active && !upcoming.length ? (
                 <EmptyState
                   icon={RouteIcon}
-                  title="No trips coming up"
-                  description="Trips the office assigns to you appear here as soon as they are planned."
+                  title="No deployments coming up"
+                  description="Deployments the office assigns to you appear here as soon as they are registered."
                   compact
                 />
               ) : (
@@ -367,7 +367,7 @@ export default function MyDayPage() {
               )}
             </Card>
             <Card>
-              <CardHeader title="History" description="Trips you have completed, most recent first." />
+              <CardHeader title="History" description="Deployments you have completed, most recent first." />
               {history.length ? (
                 <Stack component="ul" sx={{ listStyle: 'none', m: 0, p: 0 }}>
                   {history.map((t) => (
@@ -375,7 +375,7 @@ export default function MyDayPage() {
                   ))}
                 </Stack>
               ) : (
-                <EmptyState icon={RouteIcon} title="No trips yet" description="Completed trips are kept here." compact />
+                <EmptyState icon={RouteIcon} title="No deployments yet" description="Returned deployments are kept here." compact />
               )}
             </Card>
           </Stack>
@@ -384,7 +384,7 @@ export default function MyDayPage() {
       ) : null}
 
       {tab === 'fuel' ? (
-        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xl: 'repeat(3, minmax(0, 1fr))' } }}>
+        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', xl: 'repeat(3, minmax(0, 1fr))' } }}>
           <Stack spacing={2} sx={{ gridColumn: { xl: 'span 2' } }}>
             <Card>
               <CardHeader
@@ -423,8 +423,8 @@ export default function MyDayPage() {
         </Box>
       ) : null}
 
-      <TripTransitionDialog
-        trip={tripDialog?.trip}
+      <DeploymentTransitionDialog
+        deployment={tripDialog?.trip}
         status={tripDialog?.status ?? null}
         vehicle={vehicle}
         onClose={() => setTripDialog(null)}
@@ -504,12 +504,12 @@ function TripRow({ trip: t, action, compact = false, overdue = false }) {
           </Box>
         </Typography>
         <Typography sx={{ fontSize: 12, color: 'text.muted' }}>
-          <LinkText to={`/trips/${t.id}`}>{t.tripNumber}</LinkText> · {t.purpose}
-          {t.customerName ? ` · ${t.customerName}` : ''} · {t.passengers} pax
+          <LinkText to={`/deployments/${t.id}`}>{t.deploymentNumber}</LinkText> · {t.purpose}
+          {t.institution ? ` · ${t.institution}` : ''} · {t.passengers} pax
           {t.distanceKm != null ? ` · ${formatKm(t.distanceKm)}` : ''}
         </Typography>
       </Box>
-      <StatusBadge kind="trip" value={t.status} size="sm" />
+      <StatusBadge kind="deployment" value={t.status} size="sm" />
       {action ? <Box sx={{ flexShrink: 0 }}>{action}</Box> : null}
     </Box>
   )

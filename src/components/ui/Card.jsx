@@ -1,6 +1,5 @@
 import Paper from '@mui/material/Paper'
 import Box from '@mui/material/Box'
-import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 
 const toArray = (sx) => (Array.isArray(sx) ? sx : sx ? [sx] : [])
@@ -43,9 +42,7 @@ export function CardHeader({ title, description, actions, sx, compact = false })
         ) : null}
       </Box>
       {actions ? (
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexShrink: 0 }}>
-          {actions}
-        </Stack>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, minWidth: 0, maxWidth: '100%' }}>{actions}</Box>
       ) : null}
     </Box>
   )

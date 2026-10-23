@@ -150,7 +150,7 @@ export default function ImportsPage() {
         }}
         options={allowed.map(([k, t]) => ({ value: k, label: t.label }))}
       />
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { lg: 'repeat(3, minmax(0, 1fr))' } }}>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'repeat(3, minmax(0, 1fr))' } }}>
         <Card sx={{ gridColumn: { lg: 'span 2' } }}>
           <CardHeader
             title={`Upload ${def.label.toLowerCase()} CSV`}

@@ -21,7 +21,7 @@ import AddIcon from '@mui/icons-material/Add'
 import { http } from '@/api/client'
 import { useAuth } from '@/app/AuthProvider'
 import { useDebouncedValue } from '@/hooks/useDebounce'
-import { NAV_GROUPS } from '@/routes/nav'
+import { NAV_GROUPS, navItemVisible } from '@/routes/nav'
 import { Spinner } from '@/components/ui/Feedback'
 import { Kbd } from '@/components/ui/Display'
 
@@ -45,7 +45,8 @@ const TYPE_LABEL = {
 }
 
 const QUICK_ACTIONS = [
-  { label: 'New trip', to: '/trips/new', permission: 'TRIP_MANAGE' },
+  { label: 'New deployment', to: '/deployments/new', permission: 'DEPLOYMENT_MANAGE' },
+  { label: 'Register LPO', to: '/commerce/new', permission: 'ORDER_MANAGE' },
   { label: 'New booking', to: '/bookings/new', permission: 'BOOKING_MANAGE' },
   { label: 'Record fuel', to: '/fuel/new', permission: 'FUEL_MANAGE' },
   { label: 'Report maintenance', to: '/maintenance/new', permission: 'MAINTENANCE_MANAGE' },
@@ -75,7 +76,7 @@ function Palette({ onClose }) {
   const [query, setQuery] = useState('')
   const [rawIndex, setIndex] = useState(0)
   const navigate = useNavigate()
-  const { can } = useAuth()
+  const { can, user } = useAuth()
   const inputRef = useRef(null)
   const debounced = useDebouncedValue(query, 200)
 
@@ -85,7 +86,7 @@ function Palette({ onClose }) {
     enabled: debounced.trim().length >= 2,
   })
 
-  const navItems = useMemo(() => NAV_GROUPS.flatMap((g) => g.items).filter((i) => can(i.permission)), [can])
+  const navItems = useMemo(() => NAV_GROUPS.flatMap((g) => g.items).filter((i) => navItemVisible(user, can, i)), [can, user])
   const actions = useMemo(() => QUICK_ACTIONS.filter((a) => can(a.permission)), [can])
 
   const items = useMemo(() => {

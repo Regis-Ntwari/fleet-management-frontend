@@ -11,7 +11,7 @@ import {
   subMonths,
 } from 'date-fns'
 import { Rng } from './rng'
-import { DEFAULT_DEPARTMENTS, DEFAULT_ROLES } from './core'
+import { DEFAULT_COMPANIES, DEFAULT_DEPARTMENTS, DEFAULT_ROLES, DEFAULT_TARIFFS } from './core'
 import { LOOKUP_LISTS } from './lookupDefs'
 import {
   CATEGORIES,
@@ -35,7 +35,7 @@ import {
   UPCOUNTRY_LOCATIONS,
   WORKSHOPS,
 } from './data'
-export const SEED_VERSION = 10
+export const SEED_VERSION = 11
 export const DEMO_PASSWORD = 'Limoz#2026'
 const HISTORY_DAYS = 90
 const FUTURE_DAYS = 10
@@ -53,6 +53,8 @@ export const DEMO_USERS = [
   { firstName: 'Theogene', lastName: 'Munyaneza', email: 'technician@limoz.rw', role: 'TECHNICIAN', department: 'WORKSHOP' },
   { firstName: 'Josiane', lastName: 'Mukeshimana', email: 'finance@limoz.rw', role: 'FINANCE', department: 'FINANCE' },
   { firstName: 'Jean Bosco', lastName: 'Habimana', email: 'driver@limoz.rw', role: 'DRIVER', department: 'VIP' },
+  { firstName: 'Aline', lastName: 'Uwase', email: 'accounts@limoz.rw', role: 'ACCOUNT_MANAGER', department: 'CORP' },
+  { firstName: 'Emmanuel', lastName: 'Kayitare', email: 'gate@limoz.rw', role: 'GATEKEEPER', department: 'OPS' },
   { firstName: 'Grace', lastName: 'Uwimana', email: 'viewer@limoz.rw', role: 'VIEWER', department: 'CORP' },
 ]
 export const DEFAULT_SETTINGS = {
@@ -68,7 +70,27 @@ export const DEFAULT_SETTINGS = {
   idleVehicleDays: 3,
   timezone: 'Africa/Kigali',
   currency: 'RWF',
+  // Driver mission allowance for internal deployments: first day plus each additional effective day.
+  missionFirstDayAmount: 5_000,
+  missionExtraDayAmount: 15_000,
 }
+export const SUBCONTRACTOR_NAMES = ['Kigali Car Hire Ltd', 'Akagera Motors Hire', 'Virunga Rentals', 'Nyungwe Fleet Services']
+/** Tariff category a vehicle category is normally billed under. */
+export const TARIFF_FOR_CATEGORY = {
+  LUX_SUV: 'CAT1',
+  LUX_SEDAN: 'CAT1',
+  EXEC_BUS: 'CAT1',
+  SUV: 'CAT2',
+  SEDAN: 'CAT2',
+  LUX_VAN: 'CAT2',
+  SAFARI: 'CAT2',
+  TRUCK: 'CAT3',
+  FLATBED: 'CAT3',
+  TANKER: 'CAT3',
+}
+/** Driver mission allowance for an internal deployment, per the configured company rule. */
+export const missionAmount = (settings, effectiveDays) =>
+  effectiveDays > 0 ? settings.missionFirstDayAmount + (effectiveDays - 1) * settings.missionExtraDayAmount : 0
 export function buildSeed(now = new Date()) {
   const rng = new Rng(20260407)
   const today = startOfDay(now)
@@ -98,6 +120,17 @@ export function buildSeed(now = new Date()) {
     ...ts(subMonths(now, 10)),
   }))
   const departmentByCode = (code) => departments.find((d) => d.code === code)
+  // ---------- companies & tariffs ----------
+  const companies = DEFAULT_COMPANIES.map((c) => ({
+    id: nextId('company'),
+    ...c,
+    logoDataUrl: null,
+    active: true,
+    ...ts(subMonths(now, 10)),
+  }))
+  const companyByCode = (code) => companies.find((c) => c.code === code)
+  const tariffs = DEFAULT_TARIFFS.map((t) => ({ id: nextId('tariff'), ...t, active: true, ...ts(subMonths(now, 10)) }))
+  const tariffByCode = (code) => tariffs.find((t) => t.code === code)
   // ---------- reference lists ----------
   // Every dropdown value lives here so administrators can add, rename, recolour and retire them.
   const lookups = LOOKUP_LISTS.flatMap((def) =>
@@ -121,6 +154,7 @@ export function buildSeed(now = new Date()) {
     roleId: roleByCode(role).id,
     departmentId: departmentByCode(department).id,
     driverId: null,
+    companyId: null,
     phone: phone(),
     password: DEMO_PASSWORD,
     active: true,
@@ -135,6 +169,7 @@ export function buildSeed(now = new Date()) {
     roleId: roleByCode('FLEET_OFFICER').id,
     departmentId: departmentByCode('OPS').id,
     driverId: null,
+    companyId: null,
     phone: phone(),
     password: DEMO_PASSWORD,
     active: false,
@@ -163,6 +198,8 @@ export function buildSeed(now = new Date()) {
     const odometer = Math.round((ageYears * rng.int(18_000, 42_000)) / 100) * 100
     const cat = categoryByCode(spec.category)
     const plate = `${rng.pick(plateSeries)} ${rng.int(100, 999)} ${String.fromCharCode(65 + rng.int(0, 25))}`
+    const ownerRoll = rng.float(0, 1)
+    const owner = ownerRoll < 0.62 ? 'LIMOZ' : ownerRoll < 0.8 ? 'GORILLAND' : ownerRoll < 0.9 ? 'GORITECH' : 'SUBCONTRACTOR'
     return {
       id: nextId('vehicle'),
       plateNumber: plate,
@@ -185,6 +222,8 @@ export function buildSeed(now = new Date()) {
       insurancePolicyNumber: `POL-${rng.int(100000, 999999)}`,
       insuranceExpiry: null,
       department: rng.pick(DEPARTMENTS),
+      owner,
+      ownerName: owner === 'SUBCONTRACTOR' ? rng.pick(SUBCONTRACTOR_NAMES) : null,
       status: 'AVAILABLE',
       notes: null,
       archived: false,
@@ -291,6 +330,66 @@ export function buildSeed(now = new Date()) {
       currentDriverOf.set(v.id, d.id)
     }
   })
+  // ---------- customer purchase orders (LPO) ----------
+  // Every institution holds a chain of LPOs covering the demo window so each deployment can be linked to one.
+  const purchaseOrders = []
+  const accountManagers = users.filter(
+    (u) => u.active && [roleByCode('ACCOUNT_MANAGER').id, roleByCode('FLEET_MANAGER').id].includes(u.roleId),
+  )
+  const lpoDescriptions = [
+    'Vehicle hire for field missions',
+    'Executive transfers and protocol movements',
+    'Staff shuttle services',
+    'Conference delegation transport',
+    'Upcountry site visits',
+    'Airport transfers for visiting delegation',
+  ]
+  for (const institution of COMPANIES) {
+    let cursor = subDays(today, HISTORY_DAYS + rng.int(5, 25))
+    const end = addDays(today, FUTURE_DAYS + 20)
+    while (cursor < end) {
+      const durationDays = rng.pick([14, 21, 30, 30, 45, 60, 90])
+      const id = nextId('purchaseOrder')
+      const manager = rng.pick(accountManagers)
+      const amount = Math.round(rng.int(1_200_000, 18_000_000) / 50_000) * 50_000
+      purchaseOrders.push({
+        id,
+        lpoNumber: `NO.${rng.int(100, 999)}/${format(cursor, 'yy')}.${String(rng.int(1, 99)).padStart(2, '0')}`,
+        institution,
+        accountManagerId: manager.id,
+        receivedOn: day(cursor),
+        durationDays,
+        description: rng.pick(lpoDescriptions),
+        amount,
+        originalAmount: amount,
+        currency: 'RWF',
+        notes: null,
+        closedAt: null,
+        createdById: manager.id,
+        ...ts(cursor),
+      })
+      cursor = addDays(cursor, durationDays + rng.int(0, 6))
+    }
+  }
+  const lpoFor = (institution, date) => {
+    const candidates = purchaseOrders.filter((o) => o.institution === institution)
+    const key = day(date)
+    return (
+      candidates.find((o) => o.receivedOn <= key && day(addDays(new Date(o.receivedOn), o.durationDays)) >= key) ??
+      [...candidates].reverse().find((o) => o.receivedOn <= key) ??
+      candidates[0]
+    )
+  }
+  const deploymentNumberFor = (company, series, date) => {
+    const year = date.getFullYear()
+    const n = nextId(`deployment:${company.numberPrefix}${series}:${year}`)
+    return `${company.numberPrefix}${series}/${String(n).padStart(5, '0')}/${year}`
+  }
+  const issuingCompanyFor = (vehicle) =>
+    vehicle.owner === 'SUBCONTRACTOR'
+      ? companyByCode(rng.chance(0.5) ? 'LIMOZ' : 'GORILLAND')
+      : (companyByCode(vehicle.owner) ?? companies[0])
+  const settingsForSeed = { ...DEFAULT_SETTINGS }
   // ---------- trips, fuel, movements (chronological per vehicle) ----------
   const trips = []
   const fuel = []
@@ -368,7 +467,8 @@ export function buildSeed(now = new Date()) {
         to,
         purpose: rng.pick(TRIP_PURPOSES),
         passengers: rng.int(1, Math.min(v.seatingCapacity, 12)),
-        customer: rng.chance(0.65) ? rng.pick(COMPANIES) : null,
+        customer: rng.pick(COMPANIES),
+        effectiveDays: upcountry ? rng.int(1, 5) : 1,
         status,
         upcountry,
       })
@@ -388,6 +488,7 @@ export function buildSeed(now = new Date()) {
       purpose: 'Airport transfer',
       passengers: 2,
       customer: COMPANIES[0],
+      effectiveDays: 1,
       status: 'DISPATCHED',
       upcountry: false,
     })
@@ -466,12 +567,32 @@ export function buildSeed(now = new Date()) {
         ...ts(subDays(p.start, rng.int(1, 12))),
       })
     }
+    const company = issuingCompanyFor(v)
+    const series = v.owner === 'SUBCONTRACTOR' ? 2 : 1
+    const tariff = tariffByCode(TARIFF_FOR_CATEGORY[categories.find((c) => c.id === v.categoryId).code] ?? 'CAT2')
+    const lpo = lpoFor(customer, p.start)
+    const gateUser = users.find((u) => u.email === 'gate@limoz.rw')
+    const recordedBy = (u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}` })
     trips.push({
       id,
-      tripNumber: `TR-${format(p.start, 'yyMMdd')}-${String(id).padStart(4, '0')}`,
+      deploymentNumber: deploymentNumberFor(company, series, p.start),
+      companyId: company.id,
       vehicleId: v.id,
       driverId: p.driverId,
-      customerName: customer,
+      institution: customer,
+      purchaseOrderId: lpo?.id ?? null,
+      effectiveDays: p.effectiveDays,
+      tariffId: tariff.id,
+      tariffRate: tariff.dailyRate,
+      owner: v.owner,
+      ownerName: v.ownerName,
+      ownerAmount: series === 2 ? Math.round((tariff.dailyRate * p.effectiveDays * rng.float(0.45, 0.7)) / 1000) * 1000 : null,
+      driverMission: series === 1 ? missionAmount(settingsForSeed, p.effectiveDays) : null,
+      replacedById: null,
+      replacesId: null,
+      replaceReason: null,
+      departureRecordedBy: completed || inProgress ? (rng.chance(0.7) ? recordedBy(gateUser) : null) : null,
+      returnRecordedBy: completed ? (rng.chance(0.7) ? recordedBy(gateUser) : null) : null,
       bookingId,
       startLocation: p.from,
       destination: p.to,
@@ -787,26 +908,74 @@ export function buildSeed(now = new Date()) {
       ...ts(subDays(pickup, rng.int(1, 10))),
     })
   }
-  // ---------- spare parts ----------
-  const parts = PARTS.map((p) => ({
-    id: nextId('part'),
-    partNumber: p.partNumber,
-    name: p.name,
-    category: p.category,
-    unitCost: p.unitCost,
-    supplier: p.supplier,
-    minimumStock: p.min,
-    currentStock: rng.chance(0.2) ? rng.int(0, p.min - 1) : rng.int(p.min, p.min * 4),
-    ...ts(subMonths(now, 6)),
-  }))
+  // ---------- spare parts (each company keeps its own stock) ----------
+  const parts = []
+  const stockMovements = []
+  const storesUser = users.find((u) => u.email === 'workshop@limoz.rw')
+  for (const company of companies) {
+    const share = company.code === 'LIMOZ' ? 1 : company.code === 'GORILLAND' ? 0.65 : 0.35
+    for (const p of PARTS) {
+      if (!rng.chance(share)) continue
+      const currentStock = rng.chance(0.2) ? rng.int(0, p.min - 1) : rng.int(p.min, p.min * 4)
+      const issued = rng.int(0, Math.max(1, p.min))
+      const part = {
+        id: nextId('part'),
+        companyId: company.id,
+        partNumber: p.partNumber,
+        name: p.name,
+        category: p.category,
+        unit: p.unit ?? 'pcs',
+        location:
+          company.code === 'LIMOZ' ? 'Kacyiru main store' : company.code === 'GORILLAND' ? 'Remera store' : 'Kacyiru workshop shelf',
+        unitCost: p.unitCost,
+        supplier: p.supplier,
+        minimumStock: p.min,
+        currentStock,
+        ...ts(subMonths(now, 6)),
+      }
+      parts.push(part)
+      const receivedAt = subDays(now, rng.int(60, 170))
+      stockMovements.push({
+        id: nextId('stockMovement'),
+        companyId: company.id,
+        partId: part.id,
+        type: 'RECEIPT',
+        quantity: currentStock + issued,
+        unitCost: p.unitCost,
+        reference: `GRN-${format(receivedAt, 'yyMM')}-${rng.int(100, 999)}`,
+        note: `Delivery from ${p.supplier}`,
+        counterpartCompanyId: null,
+        userId: storesUser.id,
+        userName: `${storesUser.firstName} ${storesUser.lastName}`,
+        at: iso(receivedAt),
+      })
+      if (issued > 0)
+        stockMovements.push({
+          id: nextId('stockMovement'),
+          companyId: company.id,
+          partId: part.id,
+          type: 'ISSUE',
+          quantity: -issued,
+          unitCost: p.unitCost,
+          reference: `WO-${rng.int(1000, 9999)}`,
+          note: 'Issued to workshop',
+          counterpartCompanyId: null,
+          userId: storesUser.id,
+          userName: `${storesUser.firstName} ${storesUser.lastName}`,
+          at: iso(subDays(now, rng.int(3, 55))),
+        })
+    }
+  }
+  stockMovements.sort((a, b) => b.at.localeCompare(a.at))
   // ---------- maintenance ----------
   const maintenance = []
   const makeMaintenance = (v, reportedAt, status, type) => {
     const t = type ?? rng.pick(MAINTENANCE_TYPES)
     const id = nextId('maintenance')
     const partCount = t === 'INSPECTION' ? 0 : rng.int(0, 3)
+    const ownerCompany = companyByCode(v.owner) ?? companies[0]
     const chosen = rng
-      .shuffle(parts)
+      .shuffle(parts.filter((p) => p.companyId === ownerCompany.id))
       .slice(0, partCount)
       .map((p) => ({ partId: p.id, quantity: rng.int(1, 4), unitCost: p.unitCost }))
     const started = ['REPORTED', 'INSPECTION'].includes(status) ? null : addHours(reportedAt, rng.int(2, 30))
@@ -1201,10 +1370,10 @@ export function buildSeed(now = new Date()) {
         },
       },
       {
-        type: 'TRIP',
+        type: 'DEPLOYMENT',
         pick: () => {
           const t = rng.pick(trips)
-          return { id: t.id, label: t.tripNumber }
+          return { id: t.id, label: t.deploymentNumber }
         },
       },
       {
@@ -1284,17 +1453,22 @@ export function buildSeed(now = new Date()) {
     roles,
     departments,
     users,
+    companies,
+    tariffs,
+    purchaseOrders,
     categories,
     vehicles,
     drivers,
     assignments,
-    trips,
+    deployments: trips,
     bookings,
     fuel,
     fuelRequests,
     maintenance,
     schedules,
     parts,
+    stockMovements,
+    roadMaps: [],
     incidents,
     documents,
     telemetry,

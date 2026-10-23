@@ -2,7 +2,9 @@ import { format } from 'date-fns'
 import { get, post, put, patch } from '../router'
 import { getDb, nextId, persist } from '../db'
 import { badRequest, businessRule, inDateRange, matchesText, notFound, paginate } from '../core'
-import { diff, documentStatus, recordAudit, toBooking } from '../mappers'
+import { companyByCode, diff, documentStatus, recordAudit, toBooking } from '../mappers'
+import { missionAmount } from '../seed'
+import { nextDeploymentNumber } from './deployments'
 
 const auditBooking = (user, action, row, changes = null) =>
   recordAudit({
@@ -191,16 +193,37 @@ patch(
     const now = new Date().toISOString()
     Object.assign(row, { vehicleId: vehicle.id, driverId: driver.id, status: 'ASSIGNED', updatedAt: now })
     // Create the planned trip that will carry this booking.
-    const existingTrip = d.trips.find((t) => t.bookingId === row.id && !['CANCELLED', 'COMPLETED'].includes(t.status))
+    const existingTrip = d.deployments.find((t) => t.bookingId === row.id && !['CANCELLED', 'COMPLETED'].includes(t.status))
     if (existingTrip) Object.assign(existingTrip, { vehicleId: vehicle.id, driverId: driver.id, updatedAt: now })
     else {
       const tid = nextId('trip')
-      d.trips.push({
+      const institution = row.company ?? row.customerName
+      const company = companyByCode(vehicle.owner) ?? d.companies[0]
+      const owner = vehicle.owner ?? 'LIMOZ'
+      const tariff = d.tariffs.find((t) => t.active) ?? d.tariffs[0]
+      const days = Math.max(1, Math.ceil((new Date(row.returnAt) - new Date(row.pickupAt)) / 86_400_000))
+      // Bookings carry no LPO: the office links one when it reviews the planned deployment.
+      const lpo = d.purchaseOrders.find((o) => o.institution === institution && !o.closedAt) ?? null
+      d.deployments.push({
         id: tid,
-        tripNumber: `TR-${format(new Date(row.pickupAt), 'yyMMdd')}-${String(tid).padStart(4, '0')}`,
+        deploymentNumber: nextDeploymentNumber(company, owner === 'SUBCONTRACTOR' ? 2 : 1, new Date(row.pickupAt)),
+        companyId: company.id,
         vehicleId: vehicle.id,
         driverId: driver.id,
-        customerName: row.company ?? row.customerName,
+        institution,
+        purchaseOrderId: lpo?.id ?? null,
+        effectiveDays: days,
+        tariffId: tariff?.id ?? null,
+        tariffRate: tariff?.dailyRate ?? 0,
+        owner,
+        ownerName: vehicle.ownerName ?? null,
+        ownerAmount: null,
+        driverMission: owner === 'SUBCONTRACTOR' ? null : missionAmount(d.settings, days),
+        replacedById: null,
+        replacesId: null,
+        replaceReason: null,
+        departureRecordedBy: null,
+        returnRecordedBy: null,
         bookingId: row.id,
         startLocation: row.pickupLocation,
         destination: row.dropoffLocation,
@@ -248,7 +271,7 @@ patch(
     row.status = 'CANCELLED'
     row.notes = `${row.notes ? row.notes + ' · ' : ''}Cancelled: ${reason}`
     row.updatedAt = now
-    for (const t of d.trips.filter((t) => t.bookingId === row.id && ['PLANNED', 'DISPATCHED'].includes(t.status))) {
+    for (const t of d.deployments.filter((t) => t.bookingId === row.id && ['PLANNED', 'DISPATCHED'].includes(t.status))) {
       t.status = 'CANCELLED'
       t.notes = `Booking cancelled: ${reason}`
       t.updatedAt = now

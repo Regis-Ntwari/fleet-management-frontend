@@ -22,14 +22,16 @@ const DashboardPage = lazy(() => import('@/features/dashboard/DashboardPage'))
 
 /** The landing page depends on the role: office staff get the dashboard, drivers their workspace. */
 function Home() {
-  const { can } = useAuth()
+  const { can, user } = useAuth()
   if (can('DASHBOARD_VIEW'))
     return (
       <Suspense fallback={<PageSpinner />}>
         <DashboardPage />
       </Suspense>
     )
-  if (can(DRIVER_WORKSPACE_PERMISSIONS)) return <Navigate to="/my-day" replace />
+  if (can(DRIVER_WORKSPACE_PERMISSIONS) && user?.driverId) return <Navigate to="/my-trips" replace />
+  if (can('GATE_RECORD')) return <Navigate to="/gate" replace />
+  if (can('ORDER_READ')) return <Navigate to="/commerce" replace />
   return <ForbiddenPage />
 }
 
@@ -42,6 +44,12 @@ export const router = createBrowserRouter([
     errorElement: <RouteErrorPage />,
   },
   {
+    // Printable road map: no app shell so it prints as the company's A4 form.
+    path: '/deployments/:id/road-map',
+    element: <RequireAuth>{page(() => import('@/features/deployments/RoadMapPage'), ['DEPLOYMENT_READ', 'DEPLOYMENT_START'])}</RequireAuth>,
+    errorElement: <RouteErrorPage />,
+  },
+  {
     path: '/',
     element: (
       <RequireAuth>
@@ -51,7 +59,9 @@ export const router = createBrowserRouter([
     errorElement: <RouteErrorPage />,
     children: [
       { index: true, element: <Home /> },
-      { path: 'my-day', element: page(() => import('@/features/driver/MyDayPage'), DRIVER_WORKSPACE_PERMISSIONS) },
+      { path: 'my-trips', element: page(() => import('@/features/driver/MyDayPage'), DRIVER_WORKSPACE_PERMISSIONS) },
+      { path: 'my-day', element: <Navigate to="/my-trips" replace /> },
+      { path: 'gate', element: page(() => import('@/features/gate/GatePage'), ['GATE_RECORD', 'DEPLOYMENT_MANAGE']) },
       { path: 'alerts', element: page(() => import('@/features/alerts/AlertsPage'), 'DASHBOARD_VIEW') },
       { path: 'dispatch', element: page(() => import('@/features/dispatch/DispatchPage'), 'DISPATCH_VIEW') },
       { path: 'daily-position', element: page(() => import('@/features/dashboard/DailyPositionPage'), 'DASHBOARD_VIEW') },
@@ -69,10 +79,18 @@ export const router = createBrowserRouter([
       { path: 'assignments', element: page(() => import('@/features/assignments/AssignmentsPage'), 'VEHICLE_READ') },
       { path: 'documents', element: page(() => import('@/features/documents/DocumentsPage'), 'DOCUMENT_READ') },
 
-      { path: 'trips', element: page(() => import('@/features/trips/TripsPage'), 'TRIP_READ') },
-      { path: 'trips/new', element: page(() => import('@/features/trips/TripFormPage'), 'TRIP_MANAGE') },
-      { path: 'trips/:id', element: page(() => import('@/features/trips/TripDetailPage'), ['TRIP_READ', 'TRIP_START']) },
-      { path: 'trips/:id/edit', element: page(() => import('@/features/trips/TripFormPage'), 'TRIP_MANAGE') },
+      { path: 'deployments', element: page(() => import('@/features/deployments/DeploymentsPage'), 'DEPLOYMENT_READ') },
+      { path: 'deployments/new', element: page(() => import('@/features/deployments/DeploymentFormPage'), 'DEPLOYMENT_MANAGE') },
+      {
+        path: 'deployments/:id',
+        element: page(() => import('@/features/deployments/DeploymentDetailPage'), ['DEPLOYMENT_READ', 'DEPLOYMENT_START']),
+      },
+      { path: 'deployments/:id/edit', element: page(() => import('@/features/deployments/DeploymentFormPage'), 'DEPLOYMENT_MANAGE') },
+
+      { path: 'commerce', element: page(() => import('@/features/commerce/PurchaseOrdersPage'), ['ORDER_READ', 'ORDER_MANAGE']) },
+      { path: 'commerce/new', element: page(() => import('@/features/commerce/PurchaseOrderFormPage'), 'ORDER_MANAGE') },
+      { path: 'commerce/:id', element: page(() => import('@/features/commerce/PurchaseOrderDetailPage'), ['ORDER_READ', 'ORDER_MANAGE']) },
+      { path: 'commerce/:id/edit', element: page(() => import('@/features/commerce/PurchaseOrderFormPage'), 'ORDER_MANAGE') },
 
       { path: 'bookings', element: page(() => import('@/features/bookings/BookingsPage'), 'BOOKING_READ') },
       { path: 'bookings/new', element: page(() => import('@/features/bookings/BookingFormPage'), 'BOOKING_MANAGE') },

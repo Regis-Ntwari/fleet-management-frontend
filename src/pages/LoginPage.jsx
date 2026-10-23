@@ -78,7 +78,7 @@ export function LoginPage() {
   }
 
   return (
-    <Box sx={{ display: 'grid', minHeight: '100dvh', gridTemplateColumns: { lg: '1.1fr 1fr' } }}>
+    <Box sx={{ display: 'grid', minHeight: '100dvh', gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: '1.1fr 1fr' } }}>
       <Box
         component="aside"
         sx={{ position: 'relative', display: { xs: 'none', lg: 'block' }, overflow: 'hidden', bgcolor: '#06240f', color: '#fff' }}

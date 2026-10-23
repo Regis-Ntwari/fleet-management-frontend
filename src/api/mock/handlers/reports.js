@@ -2,7 +2,18 @@ import { differenceInCalendarDays, format, parseISO, subDays } from 'date-fns'
 import { get } from '../router'
 import { getDb } from '../db'
 import { inDateRange, notFound } from '../core'
-import { currentAssignmentOf, documentStatus, expectedL100, recordAudit, toFuel, toMaintenance, toSchedule } from '../mappers'
+import {
+  currentAssignmentOf,
+  deploymentAmountOf,
+  documentStatus,
+  expectedEndOf,
+  expectedL100,
+  recordAudit,
+  toFuel,
+  toMaintenance,
+  toSchedule,
+} from '../mappers'
+import { missionAmount } from '../seed'
 import { buildSummary } from './reportSummaries'
 
 export const REPORTS = [
@@ -21,11 +32,19 @@ export const REPORTS = [
     supportsDateRange: true,
   },
   {
-    key: 'trips',
-    name: 'Trip report',
-    description: 'All trips in the period with distance, duration and status.',
+    key: 'deployments',
+    name: 'Deployment report',
+    description: 'All deployments in the period with institution, LPO, distance, duration and status.',
     group: 'Operations',
     supportsDateRange: true,
+  },
+  {
+    key: 'driver-missions',
+    name: 'Driver mission report',
+    description: 'Deployments per driver with effective days and the mission amount due, for a company and period.',
+    group: 'Operations',
+    supportsDateRange: true,
+    filters: ['company', 'driver'],
   },
   {
     key: 'vehicle-movement',
@@ -161,7 +180,7 @@ const builders = {
           .map((m) => m.vehicleId),
       ).size
       const used = new Set(d.movements.filter((m) => m.date === key && m.distanceKm > 0).map((m) => m.vehicleId)).size
-      const onTrip = d.trips.filter((t) => t.status === 'COMPLETED' && (t.startedAt ?? '').startsWith(key)).length
+      const onTrip = d.deployments.filter((t) => t.status === 'COMPLETED' && (t.startedAt ?? '').startsWith(key)).length
       rows.push({
         date: key,
         total: operational.length,
@@ -191,16 +210,19 @@ const builders = {
       },
     }
   },
-  trips: ({ d, from, to }) => {
-    const rows = d.trips
+  deployments: ({ d, from, to }) => {
+    const rows = d.deployments
       .filter((t) => inDateRange(t.scheduledStartAt, from, to))
       .sort((a, b) => a.scheduledStartAt.localeCompare(b.scheduledStartAt))
       .map((t) => ({
-        tripNumber: t.tripNumber,
+        deploymentNumber: t.deploymentNumber,
         scheduledStartAt: t.scheduledStartAt,
         plateNumber: d.vehicles.find((v) => v.id === t.vehicleId)?.plateNumber,
         driver: d.drivers.find((x) => x.id === t.driverId)?.fullName,
-        customer: t.customerName ?? '—',
+        institution: t.institution ?? '—',
+        lpoNumber: d.purchaseOrders.find((o) => o.id === t.purchaseOrderId)?.lpoNumber ?? '—',
+        effectiveDays: Math.max(1, Number(t.effectiveDays) || 1),
+        amount: deploymentAmountOf(t),
         route: `${t.startLocation} → ${t.destination}`,
         distanceKm: t.endOdometer != null && t.startOdometer != null ? t.endOdometer - t.startOdometer : null,
         durationMin: t.startedAt && t.endedAt ? Math.round((parseISO(t.endedAt) - parseISO(t.startedAt)) / 60000) : null,
@@ -208,21 +230,76 @@ const builders = {
       }))
     return {
       columns: [
-        col('tripNumber', 'Trip'),
+        col('deploymentNumber', 'Deployment'),
         col('scheduledStartAt', 'Scheduled', 'datetime'),
         col('plateNumber', 'Vehicle'),
         col('driver', 'Driver'),
-        col('customer', 'Customer'),
-        col('route', 'Route'),
+        col('institution', 'Institution'),
+        col('lpoNumber', 'LPO'),
+        col('effectiveDays', 'Days', 'number', 'right'),
+        col('amount', 'Amount', 'currency', 'right'),
         col('distanceKm', 'Distance (km)', 'number', 'right'),
         col('durationMin', 'Duration (min)', 'number', 'right'),
         col('status', 'Status', 'status'),
       ],
       rows,
       totals: {
-        tripNumber: `${rows.length} trips`,
+        deploymentNumber: `${rows.length} deployments`,
+        effectiveDays: sum(rows, (r) => r.effectiveDays),
+        amount: sum(rows, (r) => r.amount),
         distanceKm: sum(rows, (r) => r.distanceKm),
         durationMin: sum(rows, (r) => r.durationMin),
+      },
+    }
+  },
+  /**
+   * Driver mission report (section 6): one line per internal deployment in the period, with the
+   * effective days and the mission amount due to the driver. Subcontractor deployments carry no
+   * driver mission and are left out. Filterable by issuing company and driver.
+   */
+  'driver-missions': ({ d, from, to, filters }) => {
+    const company = filters.companyId ? d.companies.find((c) => c.id === Number(filters.companyId)) : null
+    const rows = d.deployments
+      .filter((t) => inDateRange(t.scheduledStartAt, from, to))
+      .filter((t) => !['CANCELLED'].includes(t.status) && t.owner !== 'SUBCONTRACTOR')
+      .filter((t) => !company || t.companyId === company.id)
+      .filter((t) => !filters.driverId || t.driverId === Number(filters.driverId))
+      .sort((a, b) => a.scheduledStartAt.localeCompare(b.scheduledStartAt))
+      .map((t) => {
+        const driver = d.drivers.find((x) => x.id === t.driverId)
+        const days = Math.max(1, Number(t.effectiveDays) || 1)
+        return {
+          deploymentNumber: t.deploymentNumber,
+          startDate: (t.startedAt ?? t.scheduledStartAt).slice(0, 10),
+          endDate: (t.endedAt ?? expectedEndOf(t)).slice(0, 10),
+          plateNumber: d.vehicles.find((v) => v.id === t.vehicleId)?.plateNumber,
+          driver: driver ? `${driver.employeeNumber} ${driver.fullName}` : '—',
+          institution: t.institution ?? '—',
+          effectiveDays: days,
+          missionDue: t.driverMission ?? missionAmount(d.settings, days),
+          status: t.status,
+        }
+      })
+    const period = `${format(parseISO(from), 'dd')} to ${format(parseISO(to), 'dd MMMM yyyy')}`.toUpperCase()
+    return {
+      title: `${company ? company.numberPrefix : 'ALL'} DRIVERS MISSION FROM ${period}`,
+      subtitle: company ? company.legalName : 'All companies',
+      columns: [
+        col('deploymentNumber', 'Deployment no.'),
+        col('startDate', 'From', 'date'),
+        col('endDate', 'To', 'date'),
+        col('plateNumber', 'Plate'),
+        col('driver', 'Driver'),
+        col('institution', 'Institution'),
+        col('effectiveDays', 'Effective days', 'number', 'right'),
+        col('missionDue', 'Mission due amount', 'currency', 'right'),
+        col('status', 'Status', 'status'),
+      ],
+      rows,
+      totals: {
+        deploymentNumber: `${rows.length} deployments`,
+        effectiveDays: sum(rows, (r) => r.effectiveDays),
+        missionDue: sum(rows, (r) => r.missionDue),
       },
     }
   },
@@ -273,7 +350,7 @@ const builders = {
     const rows = d.drivers
       .filter((x) => !x.archived)
       .map((dr) => {
-        const trips = d.trips.filter((t) => t.driverId === dr.id && t.status === 'COMPLETED' && inDateRange(t.endedAt, from, to))
+        const trips = d.deployments.filter((t) => t.driverId === dr.id && t.status === 'COMPLETED' && inDateRange(t.endedAt, from, to))
         const distance = sum(trips, (t) => (t.endOdometer ?? 0) - (t.startOdometer ?? 0))
         const daysWorked = new Set(trips.map((t) => (t.endedAt ?? '').slice(0, 10))).size
         const onTime = trips.filter((t) => t.startedAt && parseISO(t.startedAt) - parseISO(t.scheduledStartAt) <= 10 * 60000).length
@@ -531,7 +608,7 @@ const builders = {
           (i) => i.estimatedCost,
         )
         const distance = sum(
-          d.trips.filter((t) => t.vehicleId === v.id && t.status === 'COMPLETED' && inDateRange(t.endedAt, from, to)),
+          d.deployments.filter((t) => t.vehicleId === v.id && t.status === 'COMPLETED' && inDateRange(t.endedAt, from, to)),
           (t) => (t.endOdometer ?? 0) - (t.startOdometer ?? 0),
         )
         const total = fuelCost + maintenanceCost + incidentCost
@@ -651,7 +728,8 @@ get(
     const to = query.to ?? format(new Date(), 'yyyy-MM-dd')
     const from = query.from ?? format(subDays(parseISO(to), 29), 'yyyy-MM-dd')
     const date = query.date ?? format(new Date(), 'yyyy-MM-dd')
-    const built = builders[def.key]({ d, from, to, date })
+    const filters = { companyId: query.companyId || null, driverId: query.driverId || null }
+    const built = builders[def.key]({ d, from, to, date, filters })
     if (query.export)
       recordAudit({
         userId: user.id,
@@ -669,6 +747,7 @@ get(
       from: def.supportsDateRange ? from : null,
       to: def.supportsDateRange ? to : null,
       date: def.supportsDateRange ? null : date,
+      filters,
       ...built,
       // KPIs and chart series are part of the contract so the server-rendered PDF
       // and the screen draw the same visuals from the same numbers.

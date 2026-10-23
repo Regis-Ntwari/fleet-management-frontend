@@ -103,7 +103,7 @@ export default function FuelAllocationDetailPage() {
         breadcrumbs={
           manage || can('FUEL_READ')
             ? [{ label: 'Fuel', to: '/fuel' }, { label: 'Allocations', to: '/fuel?tab=allocations' }, { label: a.requestNumber }]
-            : [{ label: 'My day', to: '/my-day' }, { label: a.requestNumber }]
+            : [{ label: 'My trips', to: '/my-trips' }, { label: a.requestNumber }]
         }
         meta={<StatusBadge kind="fuelRequest" value={a.status} />}
         description={`${formatLitres(a.litresAllocated)} for ${a.vehiclePlate} · ${a.driverName}${a.purpose ? ` · ${a.purpose}` : ''}`}
@@ -163,7 +163,7 @@ export default function FuelAllocationDetailPage() {
           hint={a.vehicleOdometerKm != null ? `Vehicle reads ${formatKm(a.vehicleOdometerKm)}` : null}
         />
       </StatGrid>
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xl: 'repeat(3, minmax(0, 1fr))' } }}>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', xl: 'repeat(3, minmax(0, 1fr))' } }}>
         <Stack spacing={2} sx={{ gridColumn: { xl: 'span 2' } }}>
           <Card>
             <CardHeader title="Allocation" description={`Created ${formatSmartDateTime(a.createdAt)} by ${a.createdByName}`} />
@@ -197,7 +197,7 @@ export default function FuelAllocationDetailPage() {
             />
             <CardBody>
               {s ? (
-                <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { md: 'minmax(0, 1fr) minmax(0, 1fr)' } }}>
+                <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 1fr) minmax(0, 1fr)' } }}>
                   <ProofPreview proof={s.proof} />
                   <DescriptionList
                     columns={2}

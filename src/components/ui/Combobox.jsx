@@ -51,7 +51,8 @@ export function Combobox({
   const reactId = useId()
   const id = idProp ?? reactId
   const selected = freeSolo ? undefined : (options.find((o) => String(o.value) === String(value)) ?? null)
-  const width = compact ? COMPACT_WIDTH : fullWidth ? '100%' : undefined
+  // Filter-bar dropdowns sit two per row on phones (FilterBar gap is 8px) and at a fixed width from `sm` up.
+  const width = compact ? { xs: 'calc(50% - 4px)', sm: COMPACT_WIDTH } : fullWidth ? '100%' : undefined
 
   return (
     <Autocomplete

@@ -18,7 +18,7 @@ import CloseIcon from '@mui/icons-material/Close'
 import { http } from '@/api/client'
 import { useAuth } from '@/app/AuthProvider'
 import { SIDEBAR_WIDTH, SIDEBAR_WIDTH_COLLAPSED, TOPBAR_HEIGHT } from '@/app/theme'
-import { NAV_GROUPS } from '@/routes/nav'
+import { NAV_GROUPS, navItemVisible } from '@/routes/nav'
 import { IconButton } from '@/components/ui/Button'
 
 export function Logo({ collapsed = false }) {
@@ -81,7 +81,7 @@ export function Logo({ collapsed = false }) {
 const isActivePath = (pathname, item) => (item.end ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`))
 
 export function SidebarNav({ collapsed = false, onNavigate }) {
-  const { can, status } = useAuth()
+  const { can, status, user } = useAuth()
   const { pathname } = useLocation()
   const alerts = useQuery({
     queryKey: ['alerts', 'summary'],
@@ -99,7 +99,7 @@ export function SidebarNav({ collapsed = false, onNavigate }) {
       sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', px: 1, py: 1.5 }}
     >
       {NAV_GROUPS.map((group) => {
-        const items = group.items.filter((i) => can(i.permission))
+        const items = group.items.filter((i) => navItemVisible(user, can, i))
         if (!items.length) return null
         return (
           <Box key={group.label} sx={{ mb: 2 }}>

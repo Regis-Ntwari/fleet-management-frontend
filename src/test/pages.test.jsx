@@ -46,7 +46,7 @@ describe('key screens mount against the mock API', () => {
 
   it('dispatch board and reports list load', async () => {
     renderAt('/dispatch')
-    expect(await screen.findByText(/current trips/i, {}, { timeout: 5000 })).toBeInTheDocument()
+    expect((await screen.findAllByText(/vehicles out/i, {}, { timeout: 5000 })).length).toBeGreaterThan(0)
     renderAt('/reports')
     expect(await screen.findByText(/daily fleet report/i, {}, { timeout: 5000 })).toBeInTheDocument()
   })
@@ -57,21 +57,33 @@ describe('key screens mount against the mock API', () => {
     await signInAs('driver@limoz.rw')
     const driver = getDb().drivers[0]
     renderAt('/')
-    expect(await screen.findByRole('heading', { name: /my day/i }, { timeout: 5000 })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /my trips/i }, { timeout: 5000 })).toBeInTheDocument()
     expect(await screen.findByText(new RegExp(driver.employeeNumber), {}, { timeout: 5000 })).toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: /start trip/i }, { timeout: 5000 })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^depart$/i }, { timeout: 5000 })).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: /submit receipt/i }, { timeout: 5000 })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /report a problem/i }).length).toBeGreaterThan(0)
     expect(screen.queryByRole('link', { name: /dashboard/i })).not.toBeInTheDocument()
   })
-  it('the driver workspace splits into My day, Trips and Fuel tabs', async () => {
+  it('only accounts linked to a driver profile get "My trips" in the navigation', async () => {
+    renderAt('/vehicles')
+    expect(await screen.findByRole('heading', { name: /^vehicles$/i }, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /my trips/i })).not.toBeInTheDocument()
     useAuthStore.getState().clearSession()
     queryClient.clear()
     await signInAs('driver@limoz.rw')
-    renderAt('/my-day?tab=fuel')
+    renderAt('/my-trips')
+    expect(await screen.findByRole('heading', { name: /my trips/i }, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: /my trips/i }).length).toBeGreaterThan(0)
+  })
+
+  it('the driver workspace splits into Today, Deployments and Fuel tabs', async () => {
+    useAuthStore.getState().clearSession()
+    queryClient.clear()
+    await signInAs('driver@limoz.rw')
+    renderAt('/my-trips?tab=fuel')
     expect(await screen.findByRole('tab', { name: /fuel/i }, { timeout: 5000 })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('tab', { name: /my day/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /trips/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^today/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /deployments/i })).toBeInTheDocument()
     expect(await screen.findByText(/open allocations/i, {}, { timeout: 5000 })).toBeInTheDocument()
     expect(screen.getByText(/past allocations/i)).toBeInTheDocument()
     expect(screen.queryByText(/today's trips/i)).not.toBeInTheDocument()
