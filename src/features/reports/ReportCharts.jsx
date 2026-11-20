@@ -183,7 +183,13 @@ function CartesianChart({ chart, width, height, interactive }) {
       ticks={diverging?.ticks}
     />
   ) : (
-    <YAxis {...axisProps} tickFormatter={tickFormatter(measure.format)} width={44} allowDecimals={false} domain={chart.domain} />
+    <YAxis
+      {...axisProps}
+      tickFormatter={tickFormatter(measure.format)}
+      width={chart.yAxisWidth ?? 44}
+      allowDecimals={false}
+      domain={chart.domain}
+    />
   )
 
   const common = {
@@ -192,7 +198,7 @@ function CartesianChart({ chart, width, height, interactive }) {
     height,
     layout: horizontal ? 'vertical' : 'horizontal',
     margin: horizontal
-      ? { top: 4, right: showLabels ? 56 : 16, left: 0, bottom: 0 }
+      ? { top: 4, right: showLabels ? 76 : 16, left: 0, bottom: 0 }
       : { top: showLabels ? 18 : 8, right: 8, left: -12, bottom: 0 },
   }
   const grid = <CartesianGrid {...gridProps} horizontal={!horizontal} vertical={horizontal} />
@@ -251,7 +257,7 @@ function CartesianChart({ chart, width, height, interactive }) {
     const positive = seriesColor(measure, 0)
     const negative = STATUS_COLORS[chart.negativeTone ?? 'danger']
     return (
-      <BarChart {...common} margin={{ top: 4, right: 64, left: 56, bottom: 0 }} barCategoryGap={6}>
+      <BarChart {...common} margin={{ top: 4, right: 76, left: 56, bottom: 0 }} barCategoryGap={6}>
         {grid}
         {categoryAxis}
         {valueAxis}

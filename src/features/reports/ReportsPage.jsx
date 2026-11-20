@@ -5,6 +5,7 @@ import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import BarChartIcon from '@mui/icons-material/BarChart'
+import UploadFileIcon from '@mui/icons-material/UploadFile'
 import { http } from '@/api/client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Card } from '@/components/ui/Card'
@@ -20,6 +21,49 @@ export default function ReportsPage() {
         description="Generated on the server from live operational data. Each report opens with key figures and charts above the detail table, and exports to CSV, Excel or a designed PDF."
       />
       {reports.isError ? <ErrorState error={reports.error} onRetry={reports.refetch} /> : null}
+      <Card
+        as={RouterLink}
+        to="/reports/profitability"
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          mb: 4,
+          p: 2,
+          color: 'inherit',
+          textDecoration: 'none',
+          transition: 'border-color 150ms',
+          '&:hover': { borderColor: 'edge.strong' },
+          '&:hover [data-arrow]': { transform: 'translateX(2px)', color: 'text.primary' },
+        }}
+      >
+        <Box
+          component="span"
+          sx={{
+            display: 'flex',
+            flexShrink: 0,
+            width: 40,
+            height: 40,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 1,
+            bgcolor: 'soft.accent.bg',
+            color: 'soft.accent.fg',
+          }}
+        >
+          <UploadFileIcon sx={{ fontSize: 20 }} aria-hidden />
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography component="h2" sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary' }}>
+            Profitability analysis from a workbook
+          </Typography>
+          <Typography sx={{ mt: 0.25, fontSize: 12.5, color: 'text.muted' }}>
+            Drop in the monthly profitability Excel file to see revenue, owner payments, missions, fuel, repairs and deployment status for
+            every vehicle and driver.
+          </Typography>
+        </Box>
+        <ArrowForwardIcon data-arrow sx={{ fontSize: 16, color: 'text.faint', transition: 'transform 150ms, color 150ms' }} aria-hidden />
+      </Card>
       <Stack spacing={4}>
         {groups.map((g) => {
           const items = (reports.data ?? []).filter((r) => r.group === g)

@@ -8,6 +8,8 @@ export function formatValue(value, format, decimals) {
   switch (format) {
     case 'currency':
       return decimals === 2 ? `RWF ${formatNumber(value, 2)}` : formatCurrency(value)
+    case 'currencyCompact':
+      return formatCurrency(value, { compact: true })
     case 'percent':
       return formatPercent(value, Number.isInteger(Number(value)) ? 0 : 1)
     case 'km':
@@ -27,6 +29,7 @@ export function formatValue(value, format, decimals) {
 export function tickFormatter(format) {
   switch (format) {
     case 'currency':
+    case 'currencyCompact':
       return (v) => formatCurrency(v, { compact: true }).replace('RWF ', '')
     case 'percent':
       return (v) => `${formatNumber(v)}%`

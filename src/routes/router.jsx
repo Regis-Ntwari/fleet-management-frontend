@@ -118,6 +118,10 @@ export const router = createBrowserRouter([
       { path: 'parts', element: page(() => import('@/features/maintenance/PartsPage'), 'MAINTENANCE_READ') },
 
       { path: 'reports', element: page(() => import('@/features/reports/ReportsPage'), 'REPORT_VIEW') },
+      {
+        path: 'reports/profitability',
+        element: page(() => import('@/features/reports/profitability/ProfitabilityAnalysisPage'), 'REPORT_VIEW'),
+      },
       { path: 'reports/:key', element: page(() => import('@/features/reports/ReportViewPage'), 'REPORT_VIEW') },
 
       { path: 'admin/users', element: page(() => import('@/features/admin/UsersPage'), 'USER_MANAGE') },
